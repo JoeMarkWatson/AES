@@ -18,7 +18,7 @@ from rpy2.robjects.vectors import StrVector
 pandas2ri.activate()
 tm = rpackages.importr("tm")
 
-from utils.data import tokenizer_simple_space
+from .utils.data import tokenizer_simple_space
 
 # ignore 'Objective did not converge' warning
 warnings.filterwarnings("ignore", category=ConvergenceWarning)  # not filtering out ConvergenceWarning on Joe machine
