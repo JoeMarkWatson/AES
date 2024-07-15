@@ -65,26 +65,6 @@ get_gpt_mark = function(essay) {
   return(message_out)
 }
 
-# LOAD DATA AND APPLY FUNCTIONS
-
-api_key = suppressWarnings(read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/api_key/openai_key.csv', header = F))
-api_key = as.character(api_key)
-
-# load closed items
-data = read.csv('output/closed_responses_train.csv')
-
-# add open response(s)
-#open_resps = read.csv('output/percentiles_resps.csv')  # DELETED
-#open_resps = open_resps[order(open_resps$percentile),]  # sort open_resps by percentile  # DELETED
-#true_percentile = open_resps$percentile  # DELETED
-
-# get essay scored by GPT
-#head(open_resps$R1)
-get_gpt_mark(essay = data$essays[990])  # to check fun (1)
-apply(head(data["essays"]), 1, function(x) get_gpt_mark(essay = x))  # to check fun (2)
-gpt_marks <- apply(data["essays"], 1, function(x) get_gpt_mark(essay = x))
-
-# RESTART HERE - LIKELY TO FINISH 18:10 (17:25 START).
 
 extract_values <- function(resp_string) {
   
@@ -119,14 +99,31 @@ extract_values <- function(resp_string) {
   return(resps_df)
 }
 
-extract_values(resp_string)
-resps_list = lapply(gpt_marks, extract_values)
-rm = do.call(rbind, resps_list)  # rm for resps_matrix
-rm$person = rownames(rm)
-rm$person = round(as.numeric(rm$person))
 
-#write.csv(rm, file='output/all_params/gpt_mfr_values.csv', row.names = F)  # to save here
-#rm = read.csv('output/all_params/gpt_mfr_values.csv')  # or load from here
+# LOAD DATA AND APPLY FUNCTIONS
 
-# change scoring to match closed items
-rm[, 1:6] = rm[, 1:6]-1
+api_key = suppressWarnings(read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/api_key/openai_key.csv', header = F))
+api_key = as.character(api_key)
+
+for (t in c('train', 'test')) {
+  # load closed items
+  data = read.csv(paste0('output/closed_responses_', t, '.csv'))
+  
+  # get essay scored by GPT
+  
+  #get_gpt_mark(essay = data$essays[990])  # to check fun (1)
+  #apply(head(data["essays"]), 1, function(x) get_gpt_mark(essay = x))  # to check fun (2)
+  gpt_marks <- apply(data["essays"], 1, function(x) get_gpt_mark(essay = x))
+  
+  resps_list = lapply(gpt_marks, extract_values)
+  rm = do.call(rbind, resps_list)  # rm for resps_matrix
+  rm$person = rep(seq(1, 1000), each=3)
+  rm$rater = rep(c(1, 2, 3), 1000)
+  
+  # change scoring to match closed items
+  rm[, 1:6] = rm[, 1:6]-1
+  
+  write.csv(rm, file=paste0('output/gpt_mfr_', t, '_scores.csv'), row.names = F)
+  
+}
+
