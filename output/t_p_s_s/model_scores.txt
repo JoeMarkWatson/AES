@@ -1,0 +1,32 @@
+
+----- Results for train set -----
+0.3677767095621962
+{'lasso__alpha': 0.005, 'tfidf__max_df': 0.8499999999999999, 'tfidf__min_df': 0.017, 'tfidf__tokenizer': <function tokenizer_simple_space at 0x2a520a020>}
+
+----- Results for train set -----
+0.37039377618829067
+{'lasso__alpha': 0.005, 'tfidf__max_df': 0.8499999999999999, 'tfidf__min_df': 0.014000000000000002, 'tfidf__tokenizer': <function tokenizer_simple_space at 0x29670e020>}
+
+----- Results for train set -----
+0.37237281210199225
+{'lasso__alpha': 0.005, 'tfidf__max_df': 0.8499999999999999, 'tfidf__min_df': 0.018000000000000002, 'tfidf__tokenizer': <function tokenizer_simple_space at 0x2a0a0e020>}
+
+----- Results for train set -----
+0.3870576757832743
+{'lasso__alpha': 0.00375, 'tfidf__max_df': 0.8500000000000001, 'tfidf__min_df': 0.02000000000000001, 'tfidf__tokenizer': <function tokenizer_simple_space at 0x28ef0e020>}
+
+----- Results for train set -----
+0.3690014277536354
+{'lasso__alpha': 0.00375, 'tfidf__max_df': 0.8500000000000001, 'tfidf__min_df': 0.017000000000000008, 'tfidf__tokenizer': <function tokenizer_simple_space at 0x29ef12020>}
+
+----- Results for train set -----
+0.3770387698472205
+{'lasso__alpha': 0.00375, 'tfidf__max_df': 0.8500000000000001, 'tfidf__min_df': 0.015000000000000005, 'tfidf__tokenizer': <function tokenizer_simple_space at 0x2a9312020>}
+
+----- Results for train set -----
+0.366476931774229
+{'lasso__alpha': 0.00375, 'tfidf__max_df': 0.8500000000000001, 'tfidf__min_df': 0.014000000000000004, 'tfidf__tokenizer': <function tokenizer_simple_space at 0x2ac80e020>}
+
+----- Results for train set -----
+0.3839528505012569
+{'lasso__alpha': 0.00375, 'tfidf__max_df': 0.8500000000000001, 'tfidf__min_df': 0.014500000000000004, 'tfidf__tokenizer': <function tokenizer_simple_space at 0x2afc12020>}
