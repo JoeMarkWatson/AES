@@ -13,6 +13,7 @@ library(mirt)
 library(psych)
 library(tm)
 library(tidytext)
+library(mokken)
 library(rstudioapi)
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
@@ -33,14 +34,27 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # load closed items
 data = read.csv('output/closed_responses_train.csv')
-true_percentile = data$true_perc
+
+clean_text <- function(text) {
+  # basic manip using baseR
+  text <- tolower(text)  # Convert to lowercase
+  text <- gsub("<.*?>", "", text)  # Remove HTML tags (e.g., <br>, <p>, etc.)
+  text <- gsub("[[:punct:]]", "", text)  # Remove punctuation and other non-alphabetic characters
+  #text <- gsub("\\s+", " ", text)  # Remove extra spaces
+  
+  # remove numbers, stopwords and stem using tm package
+  text = tm::removeNumbers(text)
+  #text = tm::removeWords(text, stopwords("en"))
+  text = tm::stemDocument(text)
+  
+  return(text)
+}
 
 # TODO: make this stemming, removing numbers match other scripts
 # make dtm
-s <- SimpleCorpus(VectorSource(unlist(lapply(data$essays, as.character))))
-dobj = DocumentTermMatrix(s, control = list(stopwords=F,
-                                            stemming=T,
-                                            removeNumbers=T))  # this puts everything to lower
+sents <- data$essays
+s <- Corpus(VectorSource(unlist(lapply(sents, clean_text))))
+dobj = DocumentTermMatrix(s)  # this puts everything to lower
 
 dtm = as.data.frame(as.matrix(dobj))
 #dobjr = removeSparseTerms(x=dobj, sparse=0.9)
@@ -176,7 +190,7 @@ traditional2mirt_list <- function(v_df = vals_df) {
     adip = rbind(adip, long_format)
 
   }
-  return(adip)
+  return(adip[order(adip$item),])
 
 }
 
@@ -188,13 +202,13 @@ create_dropped_rows_df = function(vs_df=vals_df) {
 
   dropped_rows = data.frame(matrix(nrow = 0, ncol = 7 + length(grm_cats)))
   colnames(dropped_rows) = c("name", "a", "b", "g", "u", grm_cats, "class", "why_dropped")
+  as.character(dropped_rows$class)
   return(dropped_rows)
 }
 
-
-fit_iter_rem_fixed_params = function(ir=data_all[, grep("^X", names(data_all))], dropped_rows=dropped_rows_df,
+fit_iter_rem_fixed_params = function(ir=data_all[, names(data_all) %in% all_params$item], dropped_rows=dropped_rows_df,
                                      disc_cut=0.3, resids_cut=0.5, params=all_params, mono_check=T) {
-
+  as.character(dropped_rows$class)
   fit = mirt(ir, model = 1, technical=list(NCYCLES=3000), pars=params)
   item_coef <- coef(fit, IRTpar=TRUE, simplify=TRUE)
   #item_coef$items[,1]  # 'a' (or discrim) column of item coefficients
@@ -310,7 +324,11 @@ fit_iter_rem_fixed_params = function(ir=data_all[, grep("^X", names(data_all))],
           filter(name %in% nonmono_items)
         item_to_drop$class = ifelse(is.na(item_to_drop$b1), 'dich', 'graded')
         item_to_drop$why_dropped = 'not mono'
-        dropped_rows = rbind(dropped_rows, item_to_drop)
+        print("here 0")
+        print(head(dropped_rows))
+        print(head(item_to_drop))
+        dropped_rows = bind_rows(dropped_rows, item_to_drop) # rbind doesn't work here
+        # item_to_drop has an extra column (b5) compared to dropped_rows
       }
       
       ir = ir[, !(names(ir) %in% dropped_rows$name)]
@@ -333,7 +351,6 @@ fit_iter_rem_fixed_params = function(ir=data_all[, grep("^X", names(data_all))],
   return(list(ir=ir, dropped_rows=dropped_rows, resids=resids, item_coef=item_coef, 
               fit=fit))
 }
-
 
 vals_df = make_vals_df(dtm)
 poly_dtm = make_poly_dtm(dtm, vals_df)
