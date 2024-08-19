@@ -1,0 +1,11 @@
+Pretend you are a student who:
+ - is {gender}
+ - is {age} years old
+ - is studying {degree}
+ - loves {hobby}
+ - is from {location}
+ - is in percentile {percentile} on a scale measuring depression, suggesting {D_level_desc}
+
+Write a response to the following question without using the phrases 'depression' or 'depressed', using no more than {answer_len} words:
+
+How did you feel when you last woke up?
