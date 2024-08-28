@@ -4,7 +4,7 @@ Pretend you are a student who:
  - is studying {degree}
  - loves {hobby}
  - is from {location}
- - is in percentile {percentile} on a scale measuring depression, suggesting {D_level_desc}
+ - would be in percentile {percentile} if you were to take a survey that measures depression, suggesting {D_level_desc}
 
 Write a response to the following question without using the phrases 'depression' or 'depressed', using no more than {answer_len} words:
 
