@@ -1,9 +1,10 @@
 import json
-import sys
 import os  # , openai, time
-from openai import OpenAI
-import pandas as pd
 import random
+import sys
+
+import pandas as pd
+from openai import OpenAI
 
 _hobbies: list[str] = []
 _degrees: list[str] = []
@@ -129,17 +130,17 @@ def generate(temp: float, percentile: int, no_api: bool = False) -> tuple[str, R
     return (response.choices[0].message.content, R)
 
 
-print(generate(percentile=0, temp=0.7))
-print(generate(percentile=25, temp=0.7))
-print(generate(percentile=50, temp=0.7))
-print(generate(percentile=75, temp=0.7))
-print(generate(percentile=99, temp=0.7))
+# print(generate(percentile=0, temp=0.7))
+# print(generate(percentile=25, temp=0.7))
+# print(generate(percentile=50, temp=0.7))
+# print(generate(percentile=75, temp=0.7))
+# print(generate(percentile=99, temp=0.7))
 
 
 def collect(responses_loc):
   """Generates and saves essay responses.
    Saves bulk responses (in a single string) to `output/responses... as a .json file`."""
-  data = {}
+  data: dict[str, list[dict[str, str]]] = {}
 
   for pc in range(0, 100):
     print(f"Starting percentile {pc}...")
@@ -177,7 +178,49 @@ def collect(responses_loc):
             sys.exit(1)
 
 
-# if __name__ == "__main__":
-#   collect(responses_d='essay_responses_train2_d')
+def small_sample(responses_loc: str) -> None:
+  """Generates and saves 50 essay responses.
+   Saves responses (in a single string) to `output/essay_responses_sample_d.json`."""
+
+  data: dict[str, list[dict[str, str]]] = {}
+
+  for pc in range(0, 100, 2):
+    print(f"Starting percentile {pc}...")
+    retry = True
+    retries = 0
+    MAX_RETRIES = 3
+
+    while retry:
+      try:
+        retry = False  # by default, don't retry
+
+        res, R = generate(percentile=pc, temp=0.7)
+        pair = {str(R): res}
+
+        if str(pc) in data:
+          data[str(pc)].append(pair)
+        else:
+          data[str(pc)] = [pair]
+
+        with open("output/" + responses_loc + ".json", "w", encoding="utf-8") as f:
+          json.dump(data, f, indent=2)  # save after every response
+
+        # time.sleep(20)  # rate limit from OpenAI, can be ommitted if using paid API key
+      except Exception as e:
+        if retries < MAX_RETRIES:
+          print(
+            f"\t\tError: {e}.\n\t\tRetrying... ({retries + 1}/{MAX_RETRIES})")
+          retries += 1
+          retry = True
+          # time.sleep(20)  # rate limit from OpenAI, can be ommitted if using paid API key
+        else:
+          print(f"\t\tMaximum retries exceeded, exiting.")
+          retry = False
+          sys.exit(1)
+
+
+if __name__ == "__main__":
+  small_sample("essay_responses_sample_d2")
+#   collect(responses_loc='essay_responses_train2_d')
 #   print('collected train')
-#   collect(responses_d='essay_responses_test2_d')
+#   collect(responses_loc='essay_responses_test2_d')

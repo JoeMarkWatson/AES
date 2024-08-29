@@ -8,4 +8,4 @@ Pretend you are a student who:
 
 Write a response to the following question without using the phrases 'depression' or 'depressed', using no more than {answer_len} words:
 
-How did you feel when you last woke up?
+Take some time to reflect on how you've been feeling over the past two weeks. Please describe your recent thoughts, emotions, and experiences related to your mental and emotional well-being.
