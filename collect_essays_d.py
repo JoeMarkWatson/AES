@@ -33,7 +33,7 @@ def load_env_ivan() -> dict[str, str]:
 if "ivano" in __file__:  # if running on ivan laptop
   OpenAI.api_key = load_env_ivan()["OPENAI_API_KEY"]
 else:
-  OpenAI.api_key = os.environ.get("OPENAI_API_pythonKEY")
+  OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 client = OpenAI()
 
 with open("input/hobbies.txt", "r", encoding="utf-8") as f:
@@ -130,11 +130,11 @@ def generate(temp: float, percentile: int, no_api: bool = False) -> tuple[str, R
     return (response.choices[0].message.content, R)
 
 
-# print(generate(percentile=0, temp=0.7))
-# print(generate(percentile=25, temp=0.7))
-# print(generate(percentile=50, temp=0.7))
-# print(generate(percentile=75, temp=0.7))
-# print(generate(percentile=99, temp=0.7))
+# print(generate(percentile=0, temp=1))  # temp=2 gives v strange output, inc a good deal of non-English text.
+# print(generate(percentile=25, temp=1))
+# print(generate(percentile=50, temp=1))
+# print(generate(percentile=75, temp=1))
+# print(generate(percentile=99, temp=1))
 
 
 def collect(responses_loc):
@@ -144,7 +144,7 @@ def collect(responses_loc):
 
   for pc in range(0, 100):
     print(f"Starting percentile {pc}...")
-    for _ in range(1, 11):
+    for _ in range(1, 31):  # 31
       retry = True
       retries = 0
       MAX_RETRIES = 3
@@ -178,6 +178,10 @@ def collect(responses_loc):
             sys.exit(1)
 
 
+if __name__ == "__main__":
+  print('collecting all essays')
+  collect(responses_loc='essay_responses_d')
+  # collect(responses_d='essay_responses_test2_d')
 def small_sample(responses_loc: str) -> None:
   """Generates and saves 50 essay responses.
    Saves responses (in a single string) to `output/essay_responses_sample_d.json`."""
