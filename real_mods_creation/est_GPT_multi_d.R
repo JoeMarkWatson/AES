@@ -14,7 +14,7 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # 1. load data, retaining only train set info ___________________________________________________/
 # 2. fit mirt on just closed items, saving the parameters _______________________________________/
-# 3. run mirt on closed and GPT-scored item, fixing closed items params (semi-fixed)_____________/
+# 3. run mirt on closed and GPT-scored items, fixing closed items params (semi-fixed)____________/
 # 3.b check no low discrim/multi-coll ___________________________________________________________/
 # 4. save the param.s of semi-fixed model _______________________________________________________/
 # 5. test and item info _________________________________________________________________________/
@@ -47,7 +47,7 @@ GPT_items_df = GPT_items_df[GPT_items_df$rater == 1, ]  # standard (not lenient 
 GPT_items = paste0('GPT', c(1:10))
 closed_items_df = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_train_pur.csv')
 closed_items = c(paste0('q', c(1:15), 'p'), paste0('q', c(17:20), 'p'))
-closed_items_df = closed_items_df[c('ID', ci_names)]
+closed_items_df = closed_items_df[c('ID', closed_items)]
 data = merge(closed_items_df, GPT_items_df, by = 'ID')  # retaining only train set rows
 
 
@@ -120,8 +120,8 @@ print(tail(item_params, 16))
 
 # 3.b check no low discrim/multi-coll
 
-min(item_params_noFix$a1)  # all discrim onto primary factor above 0.35 (min of 0.567 for all, and of 0.615 for GPT items)
-min(item_params_noFix[item_params_noFix$a2 > 0, ]$a2)  # of GPT items all discrim onto secondary factoor above 0.35 (min of 2.174)
+min(item_params$a1)  # all discrim onto primary factor above 0.35 (min of 0.564 for all, and of 0.615 for GPT items)
+min(item_params[item_params$a2 > 0, ]$a2)  # of GPT items all discrim onto secondary factoor above 0.35 (min of 2.175)
 # no local dep
 resids = data.frame(residuals(fit, type = "Q3"))  # , suppress = 0.2 removed
 resids[resids == 1] <- -999  # non NA place holder to facil following max calc
@@ -131,7 +131,7 @@ max(resids)
 
 
 # 4. save the param.s of semi-fixed model
-write.csv(item_params_noFix, "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_params_d.csv")
+write.csv(item_params, "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_params_d.csv")
 write.csv(mod2values(fit), "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_params_mirt_d.csv")
 
 
