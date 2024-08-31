@@ -1,3 +1,5 @@
+# TRIALLING SCRIPT ONLY
+
 import json
 import os  # , openai, time
 import random
