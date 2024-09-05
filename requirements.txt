@@ -1,9 +1,6 @@
-spacy
-seaborn
-matplotlib
-numpy
-Faker
-scikit-learn
-pandas
 openai
+pandas
+spacy
+numpy
+scikit-learn
 rpy2
