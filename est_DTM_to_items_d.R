@@ -1,3 +1,7 @@
+# TO DELETE FROM REPO, ULTIMATELY MOVING ELSEWHERE.
+# DELETING BECAUSE YOU'RE JUST GOING TO INC THE BINARY VERSION OF THIS APPROACH. 
+# AND UR DOING THAT COS NOT MUCH DIFFERENCE. AND IT SIMPLIFIES THINGS A LOT.
+
 # Est params for DTM to items (bi-factor) model
 
 library(catR)
@@ -180,7 +184,15 @@ create_dropped_rows_df = function(vs_df=vals_df) {
 
 fit_iter_rem_fixed_params = function(ir=data_all[, names(data_all) %in% all_params$item], dropped_rows=dropped_rows_df,
                                      disc_cut=0.3, resids_cut=0.5, params=all_params, mono_check=T) {
-  as.character(dropped_rows$class)
+  
+  # temp below
+  mod_string = paste0("F1=1-", ncol(ir), "\nF2=", length(closed_items)+1, "-", ncol(ir))
+  fit = mirt(ir, model = mod_string, technical=list(NCYCLES=3000))
+  item_coef <- coef(fit, IRTpar=TRUE, simplify=TRUE)
+  View(item_coef[["items"]])
+  # NOW - UR CONSIDERING MAKING THIS ALL BINARY. SO: MAKE TABLE(N) FOR ALL THE COLS IN IR. # HERE HERE HERE
+  # temp above
+  
   fit = mirt(ir, model = 1, technical=list(NCYCLES=3000), pars=params)
   item_coef <- coef(fit, IRTpar=TRUE, simplify=TRUE)
   #item_coef$items[,1]  # 'a' (or discrim) column of item coefficients
@@ -341,18 +353,33 @@ dtm = as.data.frame(as.matrix(dobj))
 #dobjr = removeSparseTerms(x=dobj, sparse=0.9)
 #dtm = as.data.frame(as.matrix(dobjr))
 
-item_total_cor <- apply(dtm, 2, function(item) {  # only investigating  # TODO: delete these hashed lines
-  cor(item, rowSums(data[, closed_items]), use = "complete.obs")
-})
-reverse_scored_items <- names(which(item_total_cor < 0))  # TODO: delete these hashed lines
+item_total_cor <- apply(dtm, 2, function(item) {  # maybe something strange with these hashed lines
+  cor(item, rowSums(data[, closed_items]), use = "complete.obs")  # maybe something strange with these hashed lines
+})  # maybe something strange with these hashed lines
+reverse_scored_items <- names(which(item_total_cor < 0))  # maybe something strange with these hashed lines
 
-vals_df = make_vals_df(dtm)
+vals_df = make_vals_df(my_dtm=dtm, rsi=reverse_scored_items)
 poly_dtm = make_poly_dtm(dtm, vals_df)
+
+item_total_cor <- apply(poly_dtm, 2, function(item) {  # maybe something strange with these hashed lines
+  cor(item, rowSums(data[, closed_items]), use = "complete.obs")  # maybe something strange with these hashed lines
+})  # maybe something strange with these hashed lines
+reverse_scored_items <- names(which(item_total_cor < 0))  # maybe something strange with these hashed lines
+
 data_all = cbind(data[, closed_items], poly_dtm)
+
+#item_total_cor <- apply(poly_dtm, 2, function(item) {  # maybe something strange with these hashed lines
+#  cor(item, rowSums(data_all[, closed_items]), use = "complete.obs")  # maybe something strange with these hashed lines
+#})  # maybe something strange with these hashed lines
+#names(which(item_total_cor < 0))  # maybe something strange with these hashed lines
+# fit_temp = mirt(data_all, model = 1, technical=list(NCYCLES=3000))
+# item_coef <- coef(fit_temp, IRTpar=TRUE, simplify=TRUE)
+# item_coef  # UTTERLY CONFUSING - LOOKS LIKE REVERSED SUCCESSFUL, BUT COEF.S SHOW OTHERWISE. TRY RUNNING fit_temp BUT WITH NON-REVERSED DATA_ALL.
+
 
 
 # 7. fit mirt on just closed items, saving the parameters
-fit_closed = mirt(data[, closed_items], model = 1, technical=list(NCYCLES=3000))
+fit_closed = mirt(data_all[, closed_items], model = 1, technical=list(NCYCLES=3000))
 
 parameters = mod2values(fit_closed)
 parameters$est = F  # fix all params for closed items
@@ -368,8 +395,11 @@ all_params$parnum = c(1:nrow(all_params))  # format all_params
 # 8. run mirt on closed and dtm items, using fixed closed items params
 # 9. do item purification, always accounting for param fixing
 
-dropped_rows_df=create_dropped_rows_df()
-final_output = fit_iter_rem_fixed_params()
+dropped_rows_df=create_dropped_rows_df(vs_df = vals_df)
+final_output = fit_iter_rem_fixed_params()  # for later - you have a bug when you reach the mono check - 
+# sepcifically, mono_check_df is not a df (or data frame)
+# and it stems from this: mono_check_df = ir[, c(grep('^X', names(ir)), (is_X + k))]
+
 
 # SO, running the last line shows that you did not reverse anything. So that bug needs to fixed rn. It seems like vals_df is OK.
 # but nothign gets reversed before you run fit_iter_rem_fixed_params - cos all the rev ones have neg discrim. 
