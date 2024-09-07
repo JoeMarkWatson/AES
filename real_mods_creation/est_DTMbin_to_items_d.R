@@ -12,7 +12,7 @@ library(tidytext)
 library(mokken)
 library(rstudioapi)
 
-# make_val_df needs replacing with something far simpler. check old repo
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 
 # 1. load data, retaining only train set info ___________________________________________________/
@@ -218,7 +218,7 @@ dobj = DocumentTermMatrix(s,
                           control = list(stopwords=T,
                                          stemming=T,
                                          removeNumbers=T))
-dtm = as.data.frame(as.matrix(dobj))  # 1144 terms used, total (after stemming, removing stopwords and numbers)
+dtm = as.data.frame(as.matrix(dobj))  # terms used, total (after stemming, removing stopwords and numbers)
 binary_dtm = ifelse(dtm>0, 1, 0)  # 1 if anything over 0
 binary_dtm = as.data.frame(binary_dtm)
 zero_prop <- colMeans(binary_dtm == 0)  # for binary_dtm, get rid of v sparse/non-sparse cols
@@ -304,10 +304,10 @@ names_out_nr = gsub("_reversed", "", names_out)
 names_out_nr = names_out_nr[!grepl('^q[0-9]', names_out_nr)]
 vals_df_out = vals_df[vals_df$dtm_item %in% names_out_nr, ]  # to be used when working with new/test set data
 
-write.csv(dropped_out, file="/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTMbin_droppedRows.csv", row.names = F)
+write.csv(dropped_out, file="/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTMbin_droppedRows_d.csv", row.names = F)
 write.csv(vals_df_out, file="/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTMbin_vals_df_kept_d.csv", row.names = F)
-write.csv(item_params, file="/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTMbin_ItemParams.csv", row.names = T)
-save(fit, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTMbin_mirt.RData")
+write.csv(item_params, file="/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTMbin_ItemParams_d.csv", row.names = T)
+save(fit, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTMbin_mirt_d.RData")
 
 
 # 11. test and item info

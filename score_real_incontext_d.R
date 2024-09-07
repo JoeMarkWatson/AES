@@ -1,5 +1,4 @@
 # for joe: unhash lines 275 onwards to run
-# use read.delim("prompts/score_essays_prompt_d.txt", header=F) then concat each row with \n in between to get prompt
 
 # score_real_essays_d
 
@@ -223,7 +222,11 @@ extract_values <- function(resp_string) {
 
 # LOAD DATA AND APPLY FUNCTIONS
 
-api_key = suppressWarnings(read.csv('../api_key/openai_key.csv', header = F)) # relative paths
+if (grepl('/jw/', getwd())) {
+  api_key = suppressWarnings(read.csv('../api_key/openai_key2.csv', header = F)) # relative paths
+} else {
+  api_key = suppressWarnings(read.csv('../api_key/openai_key.csv', header = F))
+}
 api_key = as.character(api_key)
 
 
@@ -231,13 +234,14 @@ data_train = read.csv('../cdftlm_train_pur.csv')
 data_test = read.csv('../cdftlm_test.csv')
 data_test$q16p <- NULL
 
+set.seed(1)
 sample_inds <- sample(nrow(data_train), 5)
 sample_data <- data_train[sample_inds, ]
 data <- rbind(data_train[-sample_inds, ][c("ID", "essays")], data_test[c("ID", "essays")])
 
 raw_scores <- apply(sample_data["essays"], 1, function(x)
   get_gpt_mark(essay = x)) # this is the only get_gpt_mark() call where we don't use few_shot = TRUE 
-scores <- data.frame(do.call(rbind, lapply(raw_scores, extract_values)) - 1)
+scores <- data.frame(do.call(rbind, lapply(raw_scores, extract_values)))
 scores$ID = rep(sample_data$ID, each = 3)
 scores$rater = c(1, 2, 3)
 names(scores) = c(
@@ -270,37 +274,48 @@ apply(head(data["essays"]), 1, function(x) get_gpt_mark(
     ))  # to check fun (2)
 
 
-### tested up to here, next few lines should work fine tho
+### tested up to here, next few lines should work fine tho - IT'S RUNNING - SEE COMMENT ON 285
+gpt_marks <- apply(data["essays"], 1, function(x)
+  get_gpt_mark(
+    essay = x,
+    samples = sample_data,
+    scores = scores,
+    few_shot = TRUE
+  ))
+# RUNNING FROM 16:26 ON 06092024. MAYBE DONE IN 30 MINS
+# U HAVE RUN NONE OF THE LOWER LINES.
 
-# gpt_marks <- apply(data["essays"], 1, function(x)
-#   get_gpt_mark(
-#     essay = x,
-#     samples = sample_data,
-#     scores = scores,
-#     few_shot = TRUE
-#   ))
-#
-# resps_list = lapply(gpt_marks, extract_values)
-# rm = do.call(rbind, resps_list)  # rm for resps_matrix
-#
-# # change scoring to match closed items
-# rm = rm - 1
-# rm = data.frame(rm)
-# rm$ID = rep(data$ID, each = 3)
-# rm$rater = c(1, 2, 3)
-# names(rm) = c(
-#   'GPT1',
-#   'GPT2',
-#   'GPT3',
-#   'GPT4',
-#   'GPT5',
-#   'GPT6',
-#   'GPT7',
-#   'GPT8',
-#   'GPT9',
-#   'GPT10',
-#   'ID',
-#   'rater'
-# )
-#
+resps_list = lapply(gpt_marks, extract_values)
+rm = do.call(rbind, resps_list)  # rm for resps_matrix
+
+# change scoring to match closed items
+rm = rm - 1
+rm = data.frame(rm)
+rm$ID = rep(data$ID, each = 3)
+rm$rater = c(1, 2, 3)
+names(rm) = c(
+  'GPT1',
+  'GPT2',
+  'GPT3',
+  'GPT4',
+  'GPT5',
+  'GPT6',
+  'GPT7',
+  'GPT8',
+  'GPT9',
+  'GPT10',
+  'ID',
+  'rater'
+)
+
 # write.csv(rm, 'output/real_scores_incontext_4mini_d.csv', row.names = F)
+
+
+# NOTES
+# You do not need to save a separate file telling you which IDs were selected as training examples,
+# as these can be identified from real_scores_incontext_4mini_d.csv. Specifically, the first
+# 435 (440-5) IDs are your train set, and the final 220 IDs are the test set.
+
+# read.delim("prompts/score_essays_prompt_d.txt", header=F)  # could poss be used
+# paste(system_prompt[[1]], collapse = "\n")  # followed by this, instead of writing out prompt in script.
+# Not implemented at present, as small chance it changes prompt formatting.
