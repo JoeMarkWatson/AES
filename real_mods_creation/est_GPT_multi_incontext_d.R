@@ -44,7 +44,8 @@ make_GPT_rows = function(item_name, n_unique) {
 
 GPT_items_df = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/real_scores_incontext_4mini_d.csv')
 GPT_items_df = GPT_items_df[GPT_items_df$rater == 1, ]  # standard (not lenient or severe) rater
-GPT_items = paste0('GPT', c(1:10))
+GPT_items = paste0('GPT', c(1:10), 'ic')
+names(GPT_items_df) = c(GPT_items, 'ID', 'rater')
 closed_items_df = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_train_pur.csv')
 closed_items = c(paste0('q', c(1:15), 'p'), paste0('q', c(17:20), 'p'))
 closed_items_df = closed_items_df[c('ID', closed_items)]

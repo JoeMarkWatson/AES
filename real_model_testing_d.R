@@ -50,7 +50,7 @@ data_all = merge(data_all, GPT_ic_df, by = 'ID')  # retaining only train set row
 # for DTM approaches, you need to call clean_essays fun
 
 
-# 5. do the temp sim
+# 5. do the sim
 # i. Loading all mod.s, as not poss from the model parameters without any re-run
 load("/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/closed_only_mirt_d.RData")  # loads as fitc - the closed only baseline model
 load("/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_mirt_d.RData")
@@ -61,7 +61,142 @@ load("/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/
 fit_single = fit
 rm(fit)
 
-# ii. 
+# ii. actual sim, start of a lot of work :)
+library(catR)
+
+# (ur output will inc 3 objects: 1 showing the order of items, 2 showing the theta est after each item, 3 showing the theta_SE after each item)
+create_obj = function(no_E = F) {
+  if (no_E) {
+    ncols = 19
+    df = data.frame(matrix(nrow=220, ncol=ncols))
+    names(df) = paste0('A', c(1:19))
+  } else {
+    ncols = 20
+    df = data.frame(matrix(nrow=220, ncol=ncols))
+    names(df) = c('E', paste0('A', c(1:19)))
+  }
+  return(df)
+}
+
+cat_sim = function(fit_obj=fit_multi) {
+  
+  params = coef(fit_obj, IRTpar=T, simplify=TRUE)
+  itembank = params$items
+  if ('d1' %in% names(data.frame(itembank))) {
+    itembank = itembank[closed_items, c('a1', 'b1', 'b2')]
+    GPTi = rownames(data.frame(params$items))[grepl('GPT', rownames(data.frame(params$items)))]
+  } else {
+    itembank = itembank[rownames(itembank) != 'GPT1', ]
+    GPTi = 'GPT1'
+  }
+  
+  q_just_asked_df = create_obj()
+  theta_df = create_obj()
+  tse_df = create_obj()
+  
+  for (r in c(1:nrow(data_all))) {
+    print(r)
+    
+    if ('d1' %in% names(data.frame(params$items))) {
+      gptm_only_resp_pat = as.vector(unlist(data_all[GPTi][r, ]))
+    } else {
+      gptm_only_resp_pat = as.vector(unlist(data_all[GPTi][r, 1]))
+    }
+    
+    closed_resps = rep(NA, length(closed_items))
+    outvec = c()
+    q_just_asked_vec = c()
+    theta_vec = c()
+    tse_vec = c()
+    
+    for (i in c(0:19)) {
+      gptm_resp_pat = c(closed_resps, gptm_only_resp_pat)
+      fso_fm = fscores(fit_obj, response.pattern=gptm_resp_pat)  # factor score obj, fit closed - baseline
+      fso_F1 = fso_fm[colnames(fso_fm) == 'F1']
+      
+      q_just_asked_vec = c(q_just_asked_vec, ifelse(length(outvec)==0, NA, outvec[length(outvec)]))
+      theta_vec = c(theta_vec, fso_F1)
+      tse_vec = c(tse_vec, fso_fm[colnames(fso_fm) == 'SE_F1'])
+      
+      if (sum(is.na(closed_resps)) >= 1) {
+        fso_ni = nextItem(itemBank = itembank, model = 'GRM', theta = fso_F1, out=outvec)
+        fso_niName = fso_ni$name
+        fso_niNum = fso_ni$item
+        closed_resps[fso_niNum] = data_all[r, fso_niName]
+        outvec = c(outvec, fso_niNum)
+      }
+    }
+    
+    q_just_asked_df[r, ] = q_just_asked_vec
+    theta_df[r, ] = theta_vec
+    tse_df[r, ] = tse_vec
+    
+  }
+  return(list(q_just_asked_df, theta_df, tse_df))
+}
+
+
+cat_sim_no_GPT = function(fit_obj=fitc) {
+  
+  params = coef(fit_obj, IRTpar=T, simplify=TRUE)
+  itembank = params$items
+  
+  q_just_asked_df = create_obj(no_E = T)
+  theta_df = create_obj(no_E = T)
+  tse_df = create_obj(no_E = T)
+  
+  for (r in c(1:nrow(data_all))) {
+    print(r)
+    
+    closed_resps = rep(NA, length(closed_items))
+    outvec = c()
+    q_just_asked_vec = c()
+    theta_vec = c()
+    tse_vec = c()
+    
+    fso_F1 = 0  # initial guess
+    for (i in c(1:19)) {
+      if (sum(is.na(closed_resps)) >= 1) {
+        fso_ni = nextItem(itemBank = itembank, model = 'GRM', theta = fso_F1, out=outvec)
+        fso_niName = fso_ni$name
+        fso_niNum = fso_ni$item
+        closed_resps[fso_niNum] = data_all[r, fso_niName]
+        outvec = c(outvec, fso_niNum)
+      }
+      
+      fso_fm = fscores(fit_obj, response.pattern=closed_resps)  # factor score obj, fit closed - baseline
+      fso_F1 = fso_fm[colnames(fso_fm) == 'F1']
+      
+      q_just_asked_vec = c(q_just_asked_vec, ifelse(length(outvec)==0, NA, outvec[length(outvec)]))
+      theta_vec = c(theta_vec, fso_F1)
+      tse_vec = c(tse_vec, fso_fm[colnames(fso_fm) == 'SE_F1'])
+      
+    }
+    
+    q_just_asked_df[r, ] = q_just_asked_vec
+    theta_df[r, ] = theta_vec
+    tse_df[r, ] = tse_vec
+    
+  }
+  return(list(q_just_asked_df, theta_df, tse_df))
+}
+
+
+closed_objs = cat_sim_no_GPT(fit_obj = fitc)
+gpts_objs = cat_sim(fit_obj = fit_single)
+multi_objs = cat_sim(fit_obj = fit_multi)
+multi_ic_objs = cat_sim(fit_obj = fit_multi_ic)
+
+
+
+
+
+
+
+
+# # # # # # # # # OLD INITIAL CHECK. 
+
+# ii. temp sim, that gives you some confidence that this is going to work
 results_df = data.frame(matrix(nrow=0, ncol=11))
 values_to_check = c(1, 2, 5, 10, 19)
 
@@ -131,8 +266,3 @@ calc_means(subset4[subset4$no_closed_items ==10, ])
 
 
 
-params = coef(fit_multi, IRTpar=T, simplify=TRUE)
-itembank = params$items
-itembank = itembank[c(1:19), c(1, 3, 4)]
-library(catR)
-nextItem(itemBank = itembank, model = 'GRM', theta = -0.3)
