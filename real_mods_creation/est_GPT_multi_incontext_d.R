@@ -1,4 +1,4 @@
-# Est params and info for GPT multi (bi-factor)
+# Est params and info for GPT multi in-context (bi-factor)
 
 library(catR)
 library(dplyr)
@@ -42,7 +42,7 @@ make_GPT_rows = function(item_name, n_unique) {
 
 # 1. load data, retaining only train set info
 
-GPT_items_df = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/real_scores4mini_d.csv')
+GPT_items_df = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/real_scores_incontext_4mini_d.csv')
 GPT_items_df = GPT_items_df[GPT_items_df$rater == 1, ]  # standard (not lenient or severe) rater
 GPT_items = paste0('GPT', c(1:10))
 closed_items_df = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_train_pur.csv')
@@ -127,18 +127,17 @@ resids = data.frame(residuals(fit, type = "Q3"))  # , suppress = 0.2 removed
 resids[resids == 1] <- -999  # non NA place holder to facil following max calc
 resids[is.na(resids)] <- -999
 max(resids)
-#print(paste0("number of resids over resid_cut pre (further) removal: ", sum(resids > resids_cut)))
+#print(paste0("number of resids over resid_cut pre (further) removal: ", sum(resids > 0.5)))  # using resids_cut of 0.5
 
 
 # 4. save the param.s of semi-fixed model
-write.csv(item_params, "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_params_d.csv")
-write.csv(mod2values(fit), "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_params_mirt_d.csv")
-save(fit, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_mirt_d.RData")
-save(fitc, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/closed_only_mirt_d.RData")
+write.csv(item_params, "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_ic_params_d.csv")
+write.csv(mod2values(fit), "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_ic_params_mirt_d.csv")
+save(fit, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_multi_ic_mirt_d.RData")
 
 
 # 5. test info
-  # info with all (inc) GPT items
+# info with all (inc) GPT items
 Theta <- matrix(seq(-4, 4, length.out = 100))  # can by -10, 10 if wanting to see fuller pattern
 Theta2 <- as.matrix(expand.grid(Theta, rep(0, 100)))  # by setting theta2 to 0, when calc.ing test info you therefore multiple a2 by 0 (so only considering theta1)
 tinfo <- testinfo(fit, Theta2, degrees = c(0,90))  # https://groups.google.com/g/mirt-package/c/RaSDKV0MPS4?pli=1 this drops the second dimension, and only considers the first
@@ -147,11 +146,10 @@ tinfo <- testinfo(fit, Theta2, degrees = c(0,90))  # https://groups.google.com/g
 total_info = tinfo[c(1:100)]
 plot(Theta, total_info, type='l')
 
-  # info with only closed items
+# info with only closed items
 total_info_c = testinfo(fitc, Theta)
 plot(Theta, total_info_c, type='l')
 
-  # of GPT items only
+# of GPT items only
 plot(Theta, total_info - total_info_c, type='l')
-
 

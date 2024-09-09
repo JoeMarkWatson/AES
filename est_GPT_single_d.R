@@ -80,6 +80,7 @@ item_params = data.frame(coefs$items)
 
 write.csv(item_params, "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_single_params_d.csv")
 write.csv(mod2values(fit), "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_single_params_mirt_d.csv")
+save(fit, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/gpt_single_mirt_d.RData")
 
 
 # 5. test and item info

@@ -1,6 +1,4 @@
-#import os
-#print(os.getcwd())
-
+import os
 import warnings
 from numpy import arange, prod
 import pandas as pd
@@ -17,29 +15,25 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.vectors import StrVector
 pandas2ri.activate()
 tm = rpackages.importr("tm")
+from utils.data import tokenizer_simple_space
 
-from .utils.data import tokenizer_simple_space
+if '/jw/' in os.getcwd():
+  print(os.getcwd())
+  if '/real_mods_creation' not in os.getcwd():
+    os.chdir('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/real_mods_creation')
+    print(os.getcwd())
 
 # ignore 'Objective did not converge' warning
 warnings.filterwarnings("ignore", category=ConvergenceWarning)  # not filtering out ConvergenceWarning on Joe machine
 
 training_params_v2 = {
-  'tfidf__tokenizer': ([tokenizer_simple_space]),
-  'tfidf__max_df': (arange(0.75, 0.9, 0.025)),
-  'tfidf__min_df': (arange(10 / 1000, 25 / 1000, 1 / 2000)),
-  'lasso__alpha': arange(0.0025, 0.01, 0.00125),
-}
+  'tfidf__tokenizer': (None, tokenizer_simple_space),
+  'tfidf__max_df': (arange(0.70, 0.98, 0.025)),
+  'tfidf__min_df': [1, 2, 3, 4, 5],
+  'tfidf__max_features': (500, 1000),
 
-# fixed_params_tfidf = {
-#   'tokenizer': (tokenizer_simple_space),
-#   'max_features': (75),
-#   'max_df': (0.9),
-#   'min_df': (2.3466993163962863e-05),
-# }
-#
-# fixed_params_lasso = {
-#   'alpha': (0.01),
-# }
+  'lasso__alpha': arange(0.1, 5, 0.5),
+}
 
 
 def val_format(val: float):
@@ -59,7 +53,7 @@ def export_weights(pipeline: Pipeline):
   weights["<none>"] = lasso_step.intercept_
   out_weights = json_normalize(weights).T
   out_weights.to_csv(
-      f"output/t_p_s_s/weights.csv", header=False)
+      "../output/t_p_s_s/weights.csv", header=False)
 
   idfs = dict(zip(tfstep.get_feature_names_out(), tfstep.idf_))
   idfs = {k: v for k, v in idfs.items() if v != 0}  # likely not needed
@@ -71,7 +65,7 @@ def export_weights(pipeline: Pipeline):
   # Then, when you score new essays you just multiply each dtm term by the idf, before working with weights
 
   out_idfs.to_csv(
-    f"output/t_p_s_s/idfs.csv", header=False)
+    "../output/t_p_s_s/idfs.csv", header=False)
 
 
 def train_v2():
@@ -81,14 +75,14 @@ def train_v2():
   print(
     f"Total folds: {prod([len(k) for k in training_params_v2.values()])}")
 
-  df = pd.read_csv('output/closed_responses_test.csv')[['sub_score', 'essays']]  # RESTART HERE - this sorted
-
-  #df = read_csv('output/t_p_s_s/group_a.csv', header=0,  # THIS IS WHAT UR TRYING TO MAKE  # OK - U JUST MANAGED TO SORT IT WITH THE ABOVE
-  #              # LINE. BUT NOTE THAT U HAVE SOME SLIGHT DIFFERENCES IN FORMAT - MAYBE JUST THAT UR df NOW CONTAINS TRUE_PERC.
-  #              index_col=None)  # updated_load_df()
+  df = pd.read_csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_train_pur.csv')
+  qcols = df.filter(regex=r'^q\d+').columns
+  chosenqs = qcols[0:10]
+  df['sub_score'] = df[chosenqs].sum(axis=1)
+  df = df[['sub_score', 'essays']]
 
   # shuffle data
-  df = df.sample(frac=1).reset_index(drop=True)
+  df = df.sample(frac=1).reset_index(drop=True)  # not needed for real data, but fine to retain
 
   # put all words to lower, remove html tags, remove remaining punct
   df['essays'] = df['essays'].str.lower()
@@ -110,7 +104,6 @@ def train_v2():
   open_resps = stem_document(open_resps)  # Stem the text
 
   X = pd.Series(open_resps)
-  print([a for a in X if ' the ' in a])
   y = df['sub_score']
 
   pipeline = Pipeline([
@@ -121,10 +114,10 @@ def train_v2():
 
   # use verbose=2 for more info
   grid_search = GridSearchCV(pipeline, training_params_v2,
-                             n_jobs=-1, cv=10)
+                             n_jobs=-1, cv=5)
   grid_search.fit(X, y)
 
-  with open(f"output/t_p_s_s/model_scores.txt", "a") as f:
+  with open(f"../output/t_p_s_s/model_scores.txt", "a") as f:
     f.write(f"\n----- Results for train set -----\n")
     f.write(str(grid_search.best_score_) + "\n")
     f.write(str(grid_search.best_params_) + "\n")
@@ -132,10 +125,10 @@ def train_v2():
   best_params = {}
   best_params["max_df"] = round(grid_search.best_params_["tfidf__max_df"], 2)
   # best_params["max_features"] = grid_search.best_params_["tfidf__max_features"]
-  best_params["min_df"] = grid_search.best_params_["tfidf__min_df"] / 990
+  best_params["min_df"] = grid_search.best_params_["tfidf__min_df"]
 
   json_normalize(best_params).to_csv(
-    f"output/t_p_s_s/model_params.csv", index=False)
+      f"../output/t_p_s_s/model_params.csv", index=False)
 
   export_weights(grid_search.best_estimator_)
 

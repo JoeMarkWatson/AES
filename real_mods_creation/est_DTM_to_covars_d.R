@@ -101,7 +101,7 @@ coefs <- coef(fit, IRTpar=TRUE, simplify=TRUE)
 covars = coefs$lr.betas  # coef.s of covariates. (All contained in fit_params, although ready-cleaned here)
 m2v = mod2values(fit)
 
-# 6. save the param.s of semi-fixed model
+# 6. save the param.s of model
 write.csv(coefs$items, file="/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTM_cov_ItemParams_d.csv", row.names = T)
 write.csv(covars, file="/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTM_cov_Covars_d.csv", row.names = T)
 save(fit, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/DTM_cov_mirt_d.RData")

@@ -1,5 +1,3 @@
-# for joe: unhash lines 275 onwards to run
-
 # score_real_essays_d
 
 # Real essay GPT scoring, of train and test (with these scores being separable by ID)
