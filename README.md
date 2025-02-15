@@ -5,6 +5,8 @@ All current file versions should end in “_d2”
 *Real data*
 
 Joe working on real data
+
+Current files are below, excluding OUTDATED:
  - translate_real_essays_d (not in repo) - translates data to English, divides data into train and test 
  - validate_real_closed_d2.R - takes the training set, transforms to binary, carries out item purification on closed items, and saves model parameters
  - OUTDATED score_essays_GPT_d2.py - scoring essays only using GPT
@@ -20,6 +22,8 @@ Joe working on real data
 
 *Synth data*
 Ivan working on synth data
+
+Current files are below:
  - gen_synth_closed_d2.R - generates synth closed responses
  - gen_synth_qual_responses_d2.py - generates synth essay and sentence-completion responses
 
