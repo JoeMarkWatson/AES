@@ -7,8 +7,8 @@ All current file versions should end in “_d2”
 Joe working on real data
 
 Current files are below, excluding OUTDATED:
- - translate_real_essays_d (not in repo) - translates data to English, divides data into train and test 
- - validate_real_closed_d2.R - takes the training set, transforms to binary, carries out item purification on closed items, and saves model parameters
+ - translate_real_statements_d2.R - translates data to English
+ - validate_real_closed_d2.R - transforms to binary, divides data into train and test, carries out item purification on closed items in the training set and saves model parameters
  - OUTDATED score_essays_GPT_d2.py - scoring essays only using GPT
  - OUTDATED score_essays_GPT_prompt2_d2.py - scoring essays only using GPT (alternate prompt)
  - OUTDATED score_essays_Gemini_d2.py - scoring essays only using Google Gemini

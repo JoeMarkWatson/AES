@@ -123,14 +123,18 @@ fit_iter_rem = function(ir=data_all, dropped_rows=dropped_rows_df,
 
 # # use fun.s
 
-resps = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdft_trans4mini_d2.csv')
+#resps = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdft_trans4mini_d2.csv')  # old file path
+resps = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdft_trans4mini_essay_n_sents_d2.csv')
+
 drop_ids = c(20651, 10383)  # both always gave 0 (before any transformation)
 resps = resps[!resps$ID %in% drop_ids, ]
 closed_item_names = paste0('q', seq(1:20), 'p')
 
 # make train and test sets
-train_size = 2*(711/3)
-train_ids = sort(resps$ID)[1:train_size]
+train_size = round(2*(nrow(resps)/3), 0)
+set.seed(0)
+train_ids = sample(resps$ID, train_size, replace = F)  # randomly sample without replacement
+
 cdftlm_train = resps[resps$ID %in% train_ids, ]
 cdftlm_test = resps[!resps$ID %in% train_ids, ]
 
@@ -144,20 +148,11 @@ fit_iter_rem_out$dropped_rows  # only q16p removed
 cdftlm_train$q16p <- NULL
 
 # store params made from train set
-write.csv(fit_iter_rem_out$item_coef$items, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_params_d2.csv')
+write.csv(fit_iter_rem_out$item_coef$items, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_params_d2UPDATED.csv')
 # store info on removed item(s)
-write.csv(fit_iter_rem_out$dropped_rows, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_dropped_rows_d2.csv', row.names = F)
+write.csv(fit_iter_rem_out$dropped_rows, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_dropped_rows_d2UPDATED.csv', row.names = F)
 # store purified train set test
-write.csv(cdftlm_train, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_train_pur_d2.csv', row.names = F)
+write.csv(cdftlm_train, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_train_pur_d2UPDATED.csv', row.names = F)
 # store test set
-write.csv(cdftlm_test, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_test_d2.csv', row.names = F)
-
-
-
-
-
-
-
-
-
+write.csv(cdftlm_test, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/cdftlm_test_d2UPDATED.csv', row.names = F)
 
