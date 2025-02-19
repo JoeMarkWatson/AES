@@ -200,7 +200,7 @@ add_new_item_params_to_fitc = function(itk=items_to_keep, fixed_closed=fitc, fin
 
 root = '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/'
 file_paths <- list(
-  closed_items_df_path = paste0(root, 'cdftlm_train_pur_d2.csv'),
+  closed_items_df_path = paste0(root, 'cdftlm_train_pur_d2UPDATED.csv'),
   MarksGPT_evidence = paste0(root, 'GPT_sentsOutput_11122024.csv'),
   MarksGPT_compare = paste0(root, 'GPT_sentsOutput2_24122024.csv'),
   MarksGPT_DO_evidence = paste0(root, 'GPT_sentsOutputEvidence_01022025.csv'),
@@ -263,13 +263,14 @@ final_output <- do.call(rbind, all_outputs)  # combine all data frames in the li
 View(final_output)
 
 # save/load final_output
-#my_file_path = 'all_individ_items05022025_d2.csv'
-#write.csv(final_output, paste0('output/', my_file_path), row.names = F)
-#final_output = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan\ proj/git_repo/output/all_individ_items05022025_d2.csv')
+#my_file_path = 'all_individ_items19022025_d2.csv'
+#write.csv(final_output, paste0(root, 'git_repo/output/', my_file_path), row.names = F)
+#final_output = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan\ proj/git_repo/output/all_individ_items19022025_d2.csv')
 
 
 # top items, choosing from all available
 items_to_keep = final_output %>%
+  filter(!grepl('_DO', item)) %>%
   mutate(item_base = gsub("com", "", item)) %>%
   filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
   filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
@@ -279,6 +280,7 @@ items_to_keep = final_output %>%
   ungroup()
 
 items_to_keep_noNA = final_output %>%
+  filter(!grepl('_DO', item)) %>%
   mutate(item_base = gsub("com", "", item)) %>%
   filter(conf_val == 0) %>%  
   filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
@@ -324,15 +326,14 @@ items_to_keepDO = final_output %>%
   ungroup()
 
 
-
 # save best items, for use in test_script_d2
-#write.csv(items_to_keep, 'output/items_to_keep_someNA.csv', row.names = F)
-#write.csv(items_to_keep_noNA, 'output/items_to_keep_noNA.csv', row.names = F)
-#write.csv(items_to_keep_best_single, 'output/items_to_keep_best_single.csv', row.names = F)
+#write.csv(items_to_keep, paste0(root, 'git_repo/output/items_to_keep_someNA19022025.csv'), row.names = F)
+#write.csv(items_to_keep_noNA, paste0(root, 'git_repo/output/items_to_keep_noNA19022025.csv'), row.names = F)
+#write.csv(items_to_keep_best_single, paste0(root, 'git_repo/output/items_to_keep_best_single19022025.csv'), row.names = F)
 
-#write.csv(items_to_keepDOevi, 'output/items_to_keepDOevi.csv', row.names = F)
-#write.csv(items_to_keepDOcom, 'output/items_to_keepDOcom.csv', row.names = F)
-#write.csv(items_to_keepDO, 'output/items_to_keepDO.csv', row.names = F)
+#write.csv(items_to_keepDOevi, paste0(root, 'git_repo/output/items_to_keepDOevi19022025.csv'), row.names = F)
+#write.csv(items_to_keepDOcom, paste0(root, 'git_repo/output/items_to_keepDOcom19022025.csv'), row.names = F)
+#write.csv(items_to_keepDO, paste0(root, 'git_repo/output/items_to_keepDO19022025.csv'), row.names = F)
 
 # from items_to_keep df.s, make all your models
 df_some_NA = alter_data_like_items_to_keep(df=all_train, items_to_keep=items_to_keep)
@@ -398,12 +399,12 @@ plot(theta_range, testinfo(fit_DOcom, theta_range))
 plot(theta_range, testinfo(fit_DO, theta_range))
 
 # save of models
-#save(fitc, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_closed28122024_d2.RData")
-#save(fit_some_NA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_someNA28122024_d2.RData")
-#save(fit_no_NA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_noNA28122024_d2.RData")
-#save(fit_best_single, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_best_single28122024_d2.RData")
+#save(fitc, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_closed19022025_d2.RData")
+#save(fit_some_NA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_someNA19022025_d2.RData")
+#save(fit_no_NA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_noNA19022025_d2.RData")
+#save(fit_best_single, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_best_single19022025_d2.RData")
 
-#save(fit_DOevi, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_DOevi08022025_d2.RData")
-#save(fit_DOcom, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_DOcom08022025_d2.RData")
-#save(fit_DO, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_DO08022025_d2.RData")
+#save(fit_DOevi, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_DOevi19022025_d2.RData")
+#save(fit_DOcom, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_DOcom19022025_d2.RData")
+#save(fit_DO, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_DO19022025_d2.RData")
 

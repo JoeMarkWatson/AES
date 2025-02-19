@@ -180,13 +180,13 @@ plot_lines = function(which_dfs=3) {
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # load some models
-load("output/fit_closed28122024_d2.RData")  # loads as fitc - the closed only baseline model
-load("output/fit_noNA28122024_d2.RData")  # loads as fit_no_NA
-load("output/fit_someNA28122024_d2.RData")  # loads as fit_some_NA
-load("output/fit_best_single28122024_d2.RData")  # loads as fit_best_single
-load("output/fit_DOevi08022025_d2.RData")  # loads as fit_DOevi
-load("output/fit_DOcom08022025_d2.RData")  # loads as fit_DOcom
-load("output/fit_DO08022025_d2.RData")  # loads as fit_DO
+load("output/fit_closed19022025_d2.RData")  # loads as fitc - the closed only baseline model
+load("output/fit_noNA19022025_d2.RData")  # loads as fit_no_NA
+load("output/fit_someNA19022025_d2.RData")  # loads as fit_some_NA
+load("output/fit_best_single19022025_d2.RData")  # loads as fit_best_single
+load("output/fit_DOevi19022025_d2.RData")  # loads as fit_DOevi
+load("output/fit_DOcom19022025_d2.RData")  # loads as fit_DOcom
+load("output/fit_DO19022025_d2.RData")  # loads as fit_DO
 #load("output/main_fit22122024_d2.RData")  # loads as fit  # old trial model
 
 # load GPT scores for essays and sents, as well as what items got selected
@@ -198,12 +198,12 @@ file_paths <- list(
   MarksGPT_DO_evidence = '../GPT_sentsOutputEvidence_01022025.csv',
   MarksGPT_DO_compare = '../GPT_sentsOutputCompare_01022025.csv',
   
-  items_to_keep_someNA = 'output/items_to_keep_someNA.csv',
-  items_to_keep_noNA = 'output/items_to_keep_noNA.csv',
-  items_to_keep_best_single = 'output/items_to_keep_best_single.csv',
-  items_to_keepDOevi = 'output/items_to_keepDOevi.csv',
-  items_to_keepDOcom = 'output/items_to_keepDOcom.csv',
-  items_to_keepDO = 'output/items_to_keepDO.csv'
+  items_to_keep_someNA = 'output/items_to_keep_someNA19022025.csv',
+  items_to_keep_noNA = 'output/items_to_keep_noNA19022025.csv',
+  items_to_keep_best_single = 'output/items_to_keep_best_single19022025.csv',
+  items_to_keepDOevi = 'output/items_to_keepDOevi19022025.csv',
+  items_to_keepDOcom = 'output/items_to_keepDOcom19022025.csv',
+  items_to_keepDO = 'output/items_to_keepDO19022025.csv'
 )
 datasets <- lapply(file_paths, read.csv)
 
