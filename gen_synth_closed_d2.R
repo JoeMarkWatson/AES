@@ -5,7 +5,7 @@ library(catR)
 
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))  # set wd
 
-load("/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_closed28122024_d2.RData")  # loads as fitc
+load("/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_closed19022025_d2.RData")  # loads as fitc
 true_theta <- sort(rnorm(3000, 0, 1))
 itemBank <- data.frame(coef(fitc, IRTpar=TRUE, simplify=TRUE)$items)
 names(itemBank) = c('a', 'b', 'c', 'd')
@@ -30,5 +30,5 @@ resps_train$theta_hat = c(fscores(fitc_synth, "EAP"))
 
 
 # write csv for train and test sets
-#write.csv(resps_train, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/synth_resps_train_d2.csv', row.names = F)
-#write.csv(resps_test, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/synth_resps_test_d2.csv', row.names = F)
+#write.csv(resps_train, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/synth_resps_train_d2UPDATED.csv', row.names = F)
+#write.csv(resps_test, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/synth_resps_test_d2UPDATED.csv', row.names = F)

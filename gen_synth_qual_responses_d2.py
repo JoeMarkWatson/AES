@@ -5,19 +5,15 @@ import os
 import regex as re
 
 
-# TODO: set env variable for openAI API key
-
-
 OpenAI.api_key = os.environ.get("OPENAI_API_KEY")
 client = OpenAI()
 
+
 # # Input notes
  # True theta for all (contained in synth_resps_train_d2.csv and synth_resps_test_d2.csv)
- # Theta hat for train (contained in synth_resps_train_d2)
- # Real qual and scores (of which u sample 5 from synth_resps_train_d2)
-
+ # Real qual (of which u sample n, contained in synth_resps_train_d2)
 # # Output notes
- # 3000 x 12 bits of qual
+ # Desired output: 3000 x 13 bits of qual, for (1) essay task and (12) sentence completion tasks
 
 
 # # def funs
@@ -41,52 +37,51 @@ def get_completion(messages, model="gpt-4o-mini", max_tokens=500, temperature=0,
     return client.chat.completions.create(**params)
 
 
-# fun that pulls 5 random rows from synth_resps_train
-def sample_5_rows(df, ran=0):
-    synth_resps_train_sample = df.sample(n=5, random_state=ran)
-    return synth_resps_train_sample
+def sample_rows_qual(df, ran=1):
+    resps_train_sample = df.sample(n=3, random_state=ran)
+    sc_cols = [f"SC{i}" for i in range(1, 13)]
+    all_qual_cols = ['trans_text'] + sc_cols
+    resps_train_sample[all_qual_cols]
+    return resps_train_sample
 
 
 # # use funs
 
 # read in the data, resps_train
-synth_resps_train = pd.read_csv('output/synth_resps_train_d2.csv')
-synth_resps_test = pd.read_csv('output/synth_resps_test_d2.csv')
+synth_resps_train = pd.read_csv('output/synth_resps_train_d2UPDATED.csv')
+synth_resps_test = pd.read_csv('output/synth_resps_test_d2UPDATED.csv')
+real_qual = pd.read_csv('../cdftlm_train_pur_d2UPDATED.csv')
 
-srts = sample_5_rows(synth_resps_train)
-
+srts = sample_rows_qual(real_qual)
+srts = srts.rename(columns={'trans_text': 'E'})
 
 # stack synth_resps_train and synth_resps_test
 synth_resps = pd.concat([synth_resps_train, synth_resps_test])
 synth_resps.reset_index(inplace=True)
 
+# create percentile rank (0th to 99th percentile)
+synth_resps['true_theta_percentile'] = np.floor(synth_resps['true_theta'].rank(pct=True) * 100).astype(int)
+synth_resps['true_theta_percentile'] = synth_resps['true_theta_percentile'].clip(0, 99)  # Ensure max is 99
 
-# below is some inspiration
+# read in column titles (giving essay names)
+open_qs = pd.read_csv('../translated_sc_names_d2.csv')
+# open_qs_used = open_qs[~open_qs['qual_source'].isin(['SC8', 'SC9', 'SC12'])]  # could poss remove rows where
+# qual_source == SC8, SC9, SC12
+# as they got used in no real models, but retaining for now
+open_qs_dict = open_qs.set_index('qual_source')['translation'].to_dict()
 
 
+def gen_synth_qual(percentile, example_resps):
+    # do some random thing to determine length, hobby, loc, etc.
+    # this needs to be based on past Ivan work: https://github.com/JoeMarkWatson/AES/blob/main/gen_synth_essays_d.py
 
 
-def gen_synth_qual(few_shot = True,
-                        sampled_essays = pd.DataFrame(),
-                        samples_scores = pd.DataFrame()):
-    """ could maybe put sampled essays and scores together as same input argument"""
+def synth_qual_all():
+    '''making a new df, with 13 cols each containing an open response for each ID'''
+    for k, v in open_qs_dict:
+        # for each row in synth_resps
+            # given the synth_resps['true_theta_percentile'] value - showing what percentile (0th to 99th) the person is in for depression with higher being more depressed and lower being less depressed
+            # and some examples of real student open q responses from the k column of srts
+            # use gen_synth_qual to write the students open-ended response, with all the nec randomisation
 
-    prompt = GEN_QUAL_PROMPT
-
-GEN_QUAL_PROMPT = """Write an essay by a Chinese high school student in response to {writing_prompt}.
-
-    Provide a 1 to 5 score for the following statement, reflecting how the essay writer compares to a typical Chinese high school student.
-    
-    Statement: {statement}
-    
-    Use the following scale:
-    - 1 = much less than a typical student
-    - 2 = slightly less than a typical student
-    - 3 = about the same as a typical student
-    - 4 = slightly more than a typical student
-    - 5 = much more than a typical student
-    
-    Return only a single integer value between 1 and 5, and nothing else. 
-    
-    Student response: ({writing_prompt_short}) "{humans_response}"."""
 
