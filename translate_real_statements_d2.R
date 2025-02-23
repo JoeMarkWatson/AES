@@ -233,6 +233,9 @@ cdftm = merge(cdft, sctt, by=c("ID","gender","age"), all=F)  # 694 rows
 translated_sc <- translate_sentence_completions(cdftm[, c(25:36)])  # began around 14:50 Ended around 16:10
 translated_sc_id = cbind(cdftm$ID, translated_sc)
 names(translated_sc_id)[1] = "ID"
+names(fss_df) = c('qual_source', 'translation')
+new_row = data.frame(qual_source = "E", translation = "The saddest experience I have had")
+fss_df = rbind(new_row, fss_df)
 #write.csv(translated_sc_id, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/translated_sc_d2.csv', row.names = F)  # saved 01122024
 #write.csv(fss_df, '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/translated_sc_names_d2.csv', row.names = F)  # saved 01122024
 
