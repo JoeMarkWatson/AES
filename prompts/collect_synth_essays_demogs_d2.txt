@@ -1,7 +1,7 @@
 a student who:
  - is {gender}
  - is {age} years old
- - is studying {degree}
- - loves {hobby}
  - is from {location}
- - would be in percentile {percentile} if you were to take a survey that measures depression, suggesting {D_level_desc}
+ - loves {hobby}
+ - if they later pursued higher education, might study {degree}
+ - if they took a survey measuring depression, would fall in percentile {percentile} (suggesting {D_level_desc}).
