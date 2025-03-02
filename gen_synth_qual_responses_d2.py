@@ -298,5 +298,3 @@ if generated_responses:
     temp_df = pd.DataFrame(generated_responses)
     temp_df.to_csv(output_file, mode='a', header=(existing_df is None), index=False)
 
-
-# 10 resps take 1m45s = 100s, so assume 8-9 hours total
