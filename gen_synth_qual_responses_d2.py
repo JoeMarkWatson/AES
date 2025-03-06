@@ -216,6 +216,8 @@ real_qual = pd.read_csv('../cdftlm_train_pur_d2UPDATED.csv')
 real_qual.loc[real_qual['age'] == 175, 'age'] = 17  # fix age error
 real_qual = real_qual.rename(columns={'trans_text': 'E'})
 srts = sample_rows_qual(real_qual)  # sample real_qual
+srts.to_csv('../sampled_example_rows.csv', index=False)
+
 open_qs = pd.read_csv('../translated_sc_names_d2.csv')
 open_qs.columns = ['key', 'q_text']
 
