@@ -193,6 +193,73 @@ add_new_item_params_to_fitc = function(itk=items_to_keep, fixed_closed=fitc, fin
 }
 
 
+alter_data_like_items_to_keep = function(df=all_train, items_to_keep=items_to_keep) {
+  # edit the data so that you have NA where conf_val is over 0
+  
+  df[df=="False"]<- F
+  df[df=="True"]<- T
+  
+  for (litem in items_to_keep$item) {
+    conf_val = items_to_keep[items_to_keep$item == litem, ]$conf_val  # conf val for that item
+    if (conf_val > 0) {
+      SxT_col <- litem
+      SxE_col <- gsub("T", "E", litem)
+      SxEP_col <- gsub("T", "EP", litem)
+      
+      if (conf_val == 50) {  # if required confidence is 50+
+        df[[SxT_col]][df[[SxE_col]] == F] <- NA  # remove only where most likely resp == F
+      }
+      if (conf_val < 50) {
+        df[[SxT_col]][(df[[SxE_col]] == F) & (df[[SxEP_col]] >= 100-conf_val)] <- NA  # remove only where resp == F is more than 75% prob
+      } else {  # if conf_val > 50
+        df[[SxT_col]][df[[SxE_col]] == F] <- NA
+        df[[SxT_col]][df[[SxEP_col]] < conf_val] <- NA
+      }
+    }
+  }
+  
+  df = df %>%  # keep only the columns that you are working with
+    select(ID,
+           all_of(closed_items),
+           all_of(items_to_keep$item))
+  
+  return(df)
+}
+
+
+add_new_item_params_to_fitc = function(itk=items_to_keep, fixed_closed=fitc, final_df, fc_params) {
+  new_item_params = data.frame(matrix(nrow=0, ncol=12))
+  
+  for (nis in itk$item) {
+    
+    nunique = nrow(unique(na.omit(final_df[nis])))
+    n_value = nrow(na.omit(final_df[nis]))
+    
+    new_item_params = rbind(new_item_params, make_new_rows(item_name=nis, n_unique = nunique))
+  }
+  
+  mod2values(fixed_closed)
+  
+  all_params = rbind(fc_params[fc_params$item != "GROUP", ],
+                     new_item_params,
+                     fc_params[fc_params$item == "GROUP", ])
+  all_params$parnum = c(1:nrow(all_params))  # format all_params
+  
+  return(all_params)
+}
+
+
+alter_data_all_params_fit = function(at=all_train, fixed_closed=fitc, 
+                                     fcps=fitc_params, itkeep) {
+  # itkeep for items to keep
+  df_ = alter_data_like_items_to_keep(df=at, items_to_keep=itkeep)
+  all_params_ = add_new_item_params_to_fitc(itk=itkeep, final_df=df_, fc_params=fitc_params)
+  fit_ = mirt(df_ %>% select(-ID), model = 1, 
+              technical=list(NCYCLES=3000), pars=all_params_)
+  return(fit_)
+}
+
+
 # # use fun.s
 
 # which_prompt = ('evidence', 'compare', 'either')  # I don't like using this. Instead, I prefer running all. 
@@ -260,13 +327,266 @@ for (i in c(1:length(cvs))) {
 
 
 final_output <- do.call(rbind, all_outputs)  # combine all data frames in the list into one
-View(final_output)
+#View(final_output)
 
 # save/load final_output
 #my_file_path = 'all_individ_items19022025_d2.csv'
 #write.csv(final_output, paste0(root, 'git_repo/output/', my_file_path), row.names = F)
 #final_output = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan\ proj/git_repo/output/all_individ_items19022025_d2.csv')
 
+# creating same groupings as for d2SYNTH
+
+# baseline (closed only)
+# bsi: best single item from all items (which happens to have noNA)             . 
+# bcai_sNA: best combo of items from all items, someNA                          x
+# bcai_nNA: best combo of items from all items, noNA                            x
+# bcvc_sNA: best combo of items from vary_com, someNA                           x
+# bcvc_nNA: best combo of items from vary_com                                   x
+# bcve_sNA: best combo of items from vary_evi, someNA                           x
+# bcve_nNA: best combo of items from vary_evi                                   x
+# bccc_sNA: best combo of items from DOcom, someNA  (same output as bccc_nNA)   x
+# bccc_nNA: best combo of items from DOcom (so not saved)                       x
+# bcce_sNA: best combo of items from DOevi, someNA (same output as bcce_nNA)    x
+# bcce_nNA: best combo of items from DOevi (so not saved)                       x
+
+# bsi
+items_to_keep_bsi = final_output %>%
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(!is.na(b4)) %>%
+  filter(tinfo_gain == max(tinfo_gain))
+
+# bcai_sNA
+items_to_keep_bciai_sNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bcai_nNA 
+items_to_keep_bciai_nNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(conf_val == 0) %>%  
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bcvc_sNA
+items_to_keep_bcvc_sNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(!grepl('_DO', item)) %>%
+  filter(grepl('com', item)) %>%
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bcvc_nNA (giving same output as bcvc_sNA)
+items_to_keep_bcvc_nNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(!grepl('_DO', item)) %>%
+  filter(grepl('com', item)) %>%
+  filter(conf_val == 0) %>%  
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bcve_sNA
+items_to_keep_bcve_sNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(!grepl('_DO', item)) %>%
+  filter(!grepl('com', item)) %>%
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bcve_nNA 
+items_to_keep_bcve_nNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(!grepl('_DO', item)) %>%
+  filter(!grepl('com', item)) %>%
+  filter(conf_val == 0) %>%  
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bccc_sNA
+items_to_keep_bccc_sNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(grepl('_DO', item)) %>%
+  filter(grepl('com', item)) %>%
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bccc_nNA
+items_to_keep_bccc_nNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(grepl('_DO', item)) %>%
+  filter(grepl('com', item)) %>%
+  filter(conf_val == 0) %>%  
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bcce_sNA
+items_to_keep_bcce_sNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(grepl('_DO', item)) %>%
+  filter(!grepl('com', item)) %>%
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# bcce_nNA
+items_to_keep_bcce_nNA = final_output %>%
+  mutate(item_base = gsub("com|_DO|com_DO", "", item)) %>%
+  filter(grepl('_DO', item)) %>%
+  filter(!grepl('com', item)) %>%
+  filter(conf_val == 0) %>%  
+  filter(n_value >= (nrow(closed_items_df) / 4)) %>%  # Drop rows where n_value is less than 1/4 of closed_items_df rows
+  filter(a >= 0.3) %>%  # Remove rows where discrimination is below 0.3
+  filter(!is.na(b4)) %>%  # Drop rows where b4 is NA
+  group_by(item_base) %>%
+  filter(tinfo_gain == max(tinfo_gain)) %>% # Select the row with the highest tinfo_gain in each group
+  filter(tinfo_gain > 15) %>%  # Keep only those with tinfo_gain > 15
+  ungroup()
+
+# save best items, for use in test_script_d2UPDATED
+write.csv(items_to_keep_bsi, paste0(root, 'git_repo/output/items_to_keep_bsi_REALd2.csv'), row.names = F)
+write.csv(items_to_keep_bciai_sNA, paste0(root, 'git_repo/output/items_to_keep_bciai_sNA_REALd2.csv'), row.names = F)
+write.csv(items_to_keep_bciai_nNA, paste0(root, 'git_repo/output/items_to_keep_bciai_nNA_REALd2.csv'), row.names = F)
+write.csv(items_to_keep_bccc_sNA, paste0(root, 'git_repo/output/items_to_keep_bccc_sNA_REALd2.csv'), row.names = F)
+write.csv(items_to_keep_bccc_nNA, paste0(root, 'git_repo/output/items_to_keep_bccc_nNA_REALd2.csv'), row.names = F)
+write.csv(items_to_keep_bcce_sNA, paste0(root, 'git_repo/output/items_to_keep_bcce_sNA_REALd2.csv'), row.names = F)
+write.csv(items_to_keep_bcce_nNA, paste0(root, 'git_repo/output/items_to_keep_bcce_nNA_REALd2.csv'), row.names = F)
+write.csv(items_to_keep_bcvc_sNA, paste0(root, 'git_repo/output/items_to_keep_bcvc_sNA_REALd2.csv'), row.names = F)
+#items_to_keep_bcvc_nNA  # not written, as exactly the same as items_to_keep_bcvc_sNA
+write.csv(items_to_keep_bcve_sNA, paste0(root, 'git_repo/output/items_to_keep_bcve_sNA_REALd2.csv'), row.names = F)
+write.csv(items_to_keep_bcve_nNA, paste0(root, 'git_repo/output/items_to_keep_bcve_nNA_REALd2.csv'), row.names = F)
+
+# alter data in
+fit_bsi = alter_data_all_params_fit(itkeep = items_to_keep_bsi)
+fit_bciai_sNA = alter_data_all_params_fit(itkeep = items_to_keep_bciai_sNA)
+fit_bciai_nNA = alter_data_all_params_fit(itkeep = items_to_keep_bciai_nNA)
+fit_bccc_sNA = alter_data_all_params_fit(itkeep = items_to_keep_bccc_sNA)
+fit_bccc_nNA = alter_data_all_params_fit(itkeep = items_to_keep_bccc_nNA)
+fit_bcce_sNA = alter_data_all_params_fit(itkeep = items_to_keep_bcce_sNA)
+fit_bcce_nNA = alter_data_all_params_fit(itkeep = items_to_keep_bcce_nNA)
+fit_bcvc_sNA = alter_data_all_params_fit(itkeep = items_to_keep_bcvc_sNA)
+fit_bcve_sNA = alter_data_all_params_fit(itkeep = items_to_keep_bcve_sNA)
+fit_bcve_nNA = alter_data_all_params_fit(itkeep = items_to_keep_bcve_nNA)
+
+# check all model resids
+data.frame(residuals(fit_bsi, type = "Q3", suppress = 0.2))  # no resids
+data.frame(residuals(fit_bciai_sNA, type = "Q3", suppress = 0.2))  # no resids exceeding 0.23
+data.frame(residuals(fit_bciai_nNA, type = "Q3", suppress = 0.2))  # no resids exceeding 0.23
+data.frame(residuals(fit_bccc_sNA, type = "Q3", suppress = 0.2))  # no resids exceeding 0.241
+data.frame(residuals(fit_bccc_nNA, type = "Q3", suppress = 0.2))  # no resids exceeding 0.25
+data.frame(residuals(fit_bcce_sNA, type = "Q3", suppress = 0.2))  # no resids exceeding 0.27
+data.frame(residuals(fit_bcce_nNA, type = "Q3", suppress = 0.2))  # no resids exceeding 0.27
+data.frame(residuals(fit_bcvc_sNA, type = "Q3", suppress = 0.2))  # no resids
+data.frame(residuals(fit_bcve_sNA, type = "Q3", suppress = 0.2))  # no resids exceeding 0.22
+data.frame(residuals(fit_bcve_nNA, type = "Q3", suppress = 0.2))  # no resids exceeding 0.22
+
+# check item coef.s
+coef(fit_bsi, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bciai_sNA, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bciai_nNA, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bccc_sNA, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bccc_nNA, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bcce_sNA, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bcce_nNA, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bcvc_sNA, IRTpar=TRUE, simplify=TRUE)$items
+#coef(fit_bcvc_nNA, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bcve_sNA, IRTpar=TRUE, simplify=TRUE)$items
+coef(fit_bcve_nNA, IRTpar=TRUE, simplify=TRUE)$items
+
+theta_range = fscores(fitc)
+
+fitc_tinfo = sum(testinfo(fitc, theta_range))  # 19632.6
+sum(testinfo(fit_bsi, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bciai_sNA, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bciai_nNA, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bcvc_sNA, theta_range)) - fitc_tinfo
+#sum(testinfo(fit_bcvc_nNA, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bcve_sNA, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bcve_nNA, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bccc_sNA, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bccc_nNA, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bcce_sNA, theta_range)) - fitc_tinfo
+sum(testinfo(fit_bcce_nNA, theta_range)) - fitc_tinfo
+
+plot(theta_range, testinfo(fitc, theta_range))
+plot(theta_range, testinfo(fit_bsi, theta_range))
+plot(theta_range, testinfo(fit_bciai_sNA, theta_range))
+plot(theta_range, testinfo(fit_bciai_nNA, theta_range))
+plot(theta_range, testinfo(fit_bcvc_sNA, theta_range))
+#plot(theta_range, testinfo(fit_bcvc_nNA, theta_range))
+plot(theta_range, testinfo(fit_bcve_sNA, theta_range))
+plot(theta_range, testinfo(fit_bcve_nNA, theta_range))
+plot(theta_range, testinfo(fit_bccc_sNA, theta_range))
+plot(theta_range, testinfo(fit_bccc_nNA, theta_range))
+plot(theta_range, testinfo(fit_bcce_sNA, theta_range))
+plot(theta_range, testinfo(fit_bcce_nNA, theta_range))
+
+# save of models
+save(fitc, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_closed_d2_real.RData")
+save(fit_bsi, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bsi_d2_real.RData")
+save(fit_bciai_sNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bciai_sNA_d2_real.RData")
+save(fit_bciai_nNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bciai_nNA_d2_real.RData")
+save(fit_bcvc_sNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bcvc_sNA_d2_real.RData")
+#save(fit_bcvc_nNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bcvc_nNA_d2_real.RData")
+save(fit_bcve_sNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bcve_sNA_d2_real.RData")
+save(fit_bcve_nNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bcve_nNA_d2_real.RData")
+save(fit_bccc_sNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bccc_sNA_d2_real.RData")
+save(fit_bccc_nNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bccc_nNA_d2_real.RData")
+save(fit_bcce_sNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bcce_sNA_d2_real.RData")
+save(fit_bcce_nNA, file = "/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/git_repo/output/fit_bcce_nNA_d2_real.RData")
+
+
+
+
+
+
+
+
+
+# ALL BELOW IS OLD CODE
 
 # top items, choosing from all available
 items_to_keep = final_output %>%
