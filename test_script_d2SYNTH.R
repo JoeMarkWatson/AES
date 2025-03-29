@@ -15,6 +15,8 @@ library(tidyverse)
 library(WrightMap)
 library(cowplot)
 library(psych)
+library(ggplot2)
+library(gridExtra)
 
 
 # # def fun.s
@@ -59,9 +61,6 @@ create_obj = function(ur_df=data_all, closed_item_names=closed_items) {
 
 
 cat_sim = function(fit_obj, data_all) {
-  
-  # RESTART HERE - YOU'VE JUST BEEN TRYING TO FINISH THIS. ESSENTIALLY, DATA_ALL NEEDS TO HAVE A COLUMN CONTAINING TRUE_THETA (AND IT COULD HAVE ANOTHER WITH ID). WITHOUT 
-  # TRUE THETA THERE IS NO WAY TO CREATE WHICH_DF4
   
   all_items = names(data_all)
   closed_items = all_items[grepl("q", all_items)]
@@ -129,6 +128,86 @@ cat_sim = function(fit_obj, data_all) {
 }
 
 
+cat_sim2 = function(fit_obj, data_all) {
+  
+  all_items = names(data_all)
+  closed_items = all_items[grepl("q", all_items)]
+  open_items = all_items[!all_items %in% c(closed_items, 'ID', 'true_theta')]
+  
+  params = coef(fit_obj, IRTpar=T, simplify=TRUE)
+  itembank = params$items
+  itembank_closed = itembank[rownames(itembank) %in% closed_items, ]
+  
+  # Split data into 4 chunks based on true_theta
+  chunks = list(
+    data_all[data_all$true_theta < -0.63, ],
+    data_all[data_all$true_theta >= -0.63 & data_all$true_theta < 0, ],
+    data_all[data_all$true_theta >= 0 & data_all$true_theta < 0.63, ],
+    data_all[data_all$true_theta >= 0.63, ]
+  )
+  
+  results = list()
+  
+  for (c in 1:4) {
+    chunk_data = chunks[[c]]
+    
+    q_just_asked_df = create_obj(chunk_data)
+    ttd_df = create_obj(chunk_data)
+    bias_df = create_obj(chunk_data)
+    
+    for (r in c(1:nrow(chunk_data))) {
+      
+      closed_resps = rep(NA, length(closed_items))
+      true_theta = chunk_data[r, 'true_theta']
+      outvec = c()
+      q_just_asked_vec = c()
+      theta_vec = c()
+      tse_vec = c()
+      
+      gptm_only_resp_pat = as.vector(unlist(chunk_data[open_items][r, ]))
+      
+      for (i in c(0:length(closed_items))) {
+        gptm_resp_pat = c(closed_resps, gptm_only_resp_pat)
+        
+        if ((sum(!is.na(gptm_resp_pat))) > 0) {
+          fso_fm = fscores(fit_obj, response.pattern=gptm_resp_pat)
+          fso_F1 = fso_fm[colnames(fso_fm) == 'F1']
+          fso_SE_F1 = fso_fm[colnames(fso_fm) == 'SE_F1']
+        } else {
+          fso_fm = NA
+          fso_F1 = NA
+          fso_SE_F1 = NA
+        }
+        
+        q_just_asked_vec = c(q_just_asked_vec, ifelse(length(outvec)==0, NA, outvec[length(outvec)]))
+        theta_vec = c(theta_vec, fso_F1)
+        tse_vec = c(tse_vec, fso_SE_F1)
+        ttd_vec = abs(theta_vec - true_theta)
+        bias_vec = theta_vec - true_theta
+        
+        if (sum(is.na(closed_resps)) >= 1) {
+          fso_ni = nextItem(itemBank = itembank_closed, model = 'GRM', theta = fso_F1, out=outvec)
+          fso_niName = fso_ni$name
+          fso_niNum = fso_ni$item
+          closed_resps[fso_niNum] = chunk_data[r, fso_niName]
+          outvec = c(outvec, fso_niNum)
+        }
+      }
+      
+      q_just_asked_df[r, ] = q_just_asked_vec
+      ttd_df[r, ] = ttd_vec
+      bias_df[r, ] = bias_vec
+    }
+    
+    results[[paste0("q_just_asked_df", c)]] = q_just_asked_df
+    results[[paste0("ttd_df", c)]] = ttd_df
+    results[[paste0("bias_df", c)]] = bias_df
+  }
+  
+  return(results)
+}
+
+
 load_n_cat_sim = function(closed_only=F, kept_items_df, fit_object) {
   if (closed_only) {
     itk_df = data_all[c(closed_items, "ID", "true_theta")]
@@ -136,6 +215,18 @@ load_n_cat_sim = function(closed_only=F, kept_items_df, fit_object) {
     itk_df = load_kept_GPT_items(kept_items = kept_items_df, fit = fit_object)
   }
   r_obj = cat_sim(fit_obj=fit_object, data_all=itk_df)
+  
+  return(r_obj)
+}
+
+
+load_n_cat_sim2 = function(closed_only=F, kept_items_df, fit_object) {
+  if (closed_only) {
+    itk_df = data_all[c(closed_items, "ID", "true_theta")]
+  } else {
+    itk_df = load_kept_GPT_items(kept_items = kept_items_df, fit = fit_object)
+  }
+  r_obj = cat_sim2(fit_obj=fit_object, data_all=itk_df)
   
   return(r_obj)
 }
@@ -193,6 +284,61 @@ plot_lines = function(obj_list, which_dfs = 3) {
   # Adjust y-axis if which_dfs is not 2, 4 or 5
   if (!(which_dfs %in% c(2, 4, 5))) {
     p <- p + scale_y_continuous(expand = expansion(mult = c(0, 0.05)), limits = c(0.27, NA))
+  }
+  
+  print(p)
+}
+
+
+plot_subplots = function(obj_list, metric = "ttd") {
+  
+  metric_dfs = paste0(metric, "_df")
+  
+  processed_data = list()
+  
+  for (cat_name in names(obj_list)) {
+    obj = obj_list[[cat_name]]
+    
+    for (i in 1:4) {
+      df_name = paste0(metric_dfs, i)
+      df = obj$data[[df_name]]
+      
+      if (!is.null(df)) {
+        df_means = get_mean_values(df)
+        df_means$Chunk = paste0("Chunk ", i)
+        df_means$CAT = obj$label
+        processed_data[[paste0(cat_name, "_", i)]] = df_means
+      }
+    }
+  }
+  
+  combined_means = bind_rows(processed_data)
+  combined_means$item = 0:19
+  
+  y_lab = ifelse(metric == "bias", "Mean Distance from True Theta (Bias)", "Mean Absolute Distance from True Theta")
+  ggtitle = ifelse(metric == "bias", "Bias Across Theta Chunks", "True Theta Distance Across Theta Chunks")
+  
+  chunk_titles = c("Below -1 SD", "Between -1 SD and 0 SD", "Between 0 SD and 1 SD", "Above 1 SD")
+  
+  color_mapping <- setNames(rep_len(RColorBrewer::brewer.pal(8, "Dark2"), length(unique(combined_means$CAT))),
+                            unique(combined_means$CAT))
+  color_mapping["Closed Only"] <- "black"
+  
+  p = ggplot(combined_means, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
+    geom_point() + 
+    geom_line(size = 1) +
+    scale_color_manual(values = color_mapping) +
+    scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
+    theme_minimal() +
+    theme(legend.position = "bottom",
+          panel.border = element_rect(color = "black", fill = NA, size = 1)) +
+    labs(x = "Closed Items Administered", y = y_lab, color = "Approach", linetype = "Approach") +
+    facet_wrap(~Chunk, ncol = 2, labeller = as_labeller(setNames(chunk_titles, paste0("Chunk ", 1:4))))
+  
+  if (metric == "ttd") {
+    p = p + ylim(0, 1)
+  } else if (metric == "bias") {
+    p = p + ylim(-1, 1)
   }
   
   print(p)
@@ -287,23 +433,54 @@ bcve_sNA_objs_r = load_n_cat_sim(kept_items_df = datasets$items_to_keep_bcve_sNA
 bccc_sNA_objs_r = load_n_cat_sim(kept_items_df = datasets$items_to_keep_bccc_sNA_synth, fit_object = fit_bccc_sNA)
 bcce_sNA_objs_r = load_n_cat_sim(kept_items_df = datasets$items_to_keep_bcce_sNA_synth, fit_object = fit_bcce_sNA)
 
-# check sim output
+# plot sim output
 obj_list <- list(
-  closed = list(data = closed_objs_r, label = "closed"),
-  bsi = list(data = bsi_objs_r, label = 'best single item'),
-  bccc_sNA = list(data = bccc_sNA_objs_r, label = "consistent comparison only"),  
-  bcce_sNA = list(data = bcce_sNA_objs_r, label = "consistent evidence only"),    
-  bciai_sNA = list(data = bciai_sNA_objs_r, label = "best all items"),
-  bcvc_nNA = list(data = bcvc_nNA_objs_r, label = "varying comparison only, no NA permitted"),    
-  bcvc_sNA = list(data = bcvc_sNA_objs_r, label = "varying comparison only"),    
-  bcve_sNA = list(data = bcve_sNA_objs_r, label = "varying evidence only")
+  closed = list(data = closed_objs_r, label = "Closed Only"),
+  bsi = list(data = bsi_objs_r, label = "Best Single Item"),
+  bccc_sNA = list(data = bccc_sNA_objs_r, label = "Consistent Comparison Only"),  
+  bcce_sNA = list(data = bcce_sNA_objs_r, label = "Consistent Evidence Only"),    
+  bciai_sNA = list(data = bciai_sNA_objs_r, label = "Best All Items"),
+  bcvc_nNA = list(data = bcvc_nNA_objs_r, label = "Varying Comparison Only (no NA)"),    
+  bcvc_sNA = list(data = bcvc_sNA_objs_r, label = "Varying Comparison Only"),    
+  bcve_sNA = list(data = bcve_sNA_objs_r, label = "Varying Evidence Only")
 )
+
+# drafting
+plot_subplots_whole_sample(obj_list)
+"# drafting
 
 plot_lines(obj_list, which_dfs = 2)  # mean theta hat  # warning message is OK - it is for missing 0th item value for closed only
 plot_lines(obj_list, which_dfs = 3)  # theta hat SE
 plot_lines(obj_list, which_dfs = 4)  # absolute distance between theta hat and true theta
 plot_lines(obj_list, which_dfs = 5)  # distance between theta hat and true theta (bias)
 
+# run the 2nd sim
+closed_objs_r2 = load_n_cat_sim2(closed_only = T, kept_items_df=NA, fit_object=fitc)
+bsi_objs_r2 = load_n_cat_sim2(kept_items_df = datasets$items_to_keep_bsi_synth, fit_object = fit_bsi)  
+bciai_sNA_objs_r2 = load_n_cat_sim2(kept_items_df = datasets$items_to_keep_bciai_sNA_synth, fit_object = fit_bciai_sNA)
+bcvc_sNA_objs_r2 = load_n_cat_sim2(kept_items_df = datasets$items_to_keep_bcvc_sNA_synth, fit_object = fit_bcvc_sNA)
+bcvc_nNA_objs_r2 = load_n_cat_sim2(kept_items_df = datasets$items_to_keep_bcvc_nNA_synth, fit_object = fit_bcvc_nNA)
+bcve_sNA_objs_r2 = load_n_cat_sim2(kept_items_df = datasets$items_to_keep_bcve_sNA_synth, fit_object = fit_bcve_sNA)
+bccc_sNA_objs_r2 = load_n_cat_sim2(kept_items_df = datasets$items_to_keep_bccc_sNA_synth, fit_object = fit_bccc_sNA)
+bcce_sNA_objs_r2 = load_n_cat_sim2(kept_items_df = datasets$items_to_keep_bcce_sNA_synth, fit_object = fit_bcce_sNA)
+
+# plot sim2 output
+obj_list2 <- list(
+  closed = list(data = closed_objs_r2, label = "Closed Only"),
+  bsi = list(data = bsi_objs_r2, label = "Best Single Item"),
+  bciai_sNA = list(data = bciai_sNA_objs_r2, label = "Best All Items"),
+  bcvc_sNA = list(data = bcvc_sNA_objs_r2, label = "Varying Comparison Only"),
+  bcvc_nNA = list(data = bcvc_nNA_objs_r2, label = "Varying Comparison Only (No NA)"),
+  bcve_sNA = list(data = bcve_sNA_objs_r2, label = "Varying Evidence Only"),
+  bccc_sNA = list(data = bccc_sNA_objs_r2, label = "Consistent Comparison Only"),
+  bcce_sNA = list(data = bcce_sNA_objs_r2, label = "Consistent Evidence Only")
+)
+
+plot_subplots(obj_list2, metric = "ttd")  # For true theta distance
+plot_subplots(obj_list2, metric = "bias") # For bias
+
+# TODO: remove multi legends. Make baseline black (and dashed).
+# come up with interpretation
 
 # # #
 
