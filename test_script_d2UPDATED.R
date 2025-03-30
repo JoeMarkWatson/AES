@@ -13,7 +13,8 @@ library(tidyverse)
 library(WrightMap)
 library(cowplot)
 library(psych)
-
+library(ggplot2)
+library(gridExtra)
 
 # # def fun.s
 
@@ -126,6 +127,7 @@ get_mean_values <- function(df) {
 
 
 plot_lines = function(obj_list, which_dfs = 3) {
+  # old plotting code - can be used to look at individ subplots
   
   # Initialize an empty list to store processed data frames
   processed_dfs <- list()
@@ -173,6 +175,63 @@ plot_lines = function(obj_list, which_dfs = 3) {
   
   print(p)
 }
+
+
+plot_2_subplots_whole_sample = function(obj_list) {
+  processed_data = list()
+  df_indices = 2:3  # Only plotting the first two subplots
+  
+  y_axis_labels = c("Theta Est", "Theta Est SE")
+  x_axis_labels = c("Closed Items Administered", " ")
+  metric_titles = c("Mean Theta Est", "Mean Theta Est SE")
+  metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))
+  y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
+  
+  plot_list = list()
+  
+  for (i in seq_along(df_indices)) {
+    metric = paste0("Metric ", df_indices[i])
+    plot_data = bind_rows(lapply(names(obj_list), function(cat_name) {
+      obj = obj_list[[cat_name]]
+      df = obj$data[[df_indices[i]]]
+      if (!is.null(df)) {
+        df_means = get_mean_values(df)
+        df_means$Metric = metric
+        df_means$CAT = obj$label
+        return(df_means)
+      }
+      return(NULL)
+    }))
+    
+    plot_data$item = 0:19
+    
+    color_mapping <- setNames(rep_len(RColorBrewer::brewer.pal(8, "Dark2"), length(unique(plot_data$CAT))),
+                              unique(plot_data$CAT))
+    color_mapping["Closed Only"] <- "black"
+    
+    p = ggplot(plot_data, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
+      geom_point() + 
+      geom_line(size = 1) +
+      scale_color_manual(values = color_mapping) +
+      scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
+      theme_minimal() +
+      theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
+      labs(x = x_axis_labels[i], y = y_axis_labels[i], title = metric_titles[i], color = "Approach", linetype = "Approach") +
+      theme(strip.text = element_text(size = 12), axis.title.y = element_text(size = 12))
+    
+    if (i == 2) {  # Add legend to subplot 2
+      p = p + theme(legend.position = c(0.72, 0.64),
+                    legend.background = element_rect(color = "black", fill = NA, size = 1))
+    } else {
+      p = p + theme(legend.position = "none")
+    }
+    
+    plot_list[[i]] = p
+  }
+  
+  grid.arrange(grobs = plot_list, ncol = 2)
+}
+
 
 
 # # employ fun.s
@@ -275,27 +334,29 @@ bcve_nNA_objs_r = cat_sim(fit_obj = fit_bcve_nNA, data_all = itk_bcve_nNA)
 
 # check sim output
 obj_list <- list(
-  closed = list(data = closed_objs_r, label = "closed"),
-  bsi = list(data = bsi_objs_r, label = 'best single item'),
-  bciai_sNA = list(data = bciai_sNA_objs_r, label = "best all items"),
-  bciai_nNA = list(data = bciai_nNA_objs_r, label = "best all items, no NA permitted"),
-  bccc_sNA = list(data = bccc_sNA_objs_r, label = "consistent comparison only"),
-  bccc_nNA = list(data = bccc_nNA_objs_r, label = "consistent comparison only, no NA permitted"),
-  bcce_sNA = list(data = bcce_sNA_objs_r, label = "consistent evidence only"),    
-  bcce_nNA = list(data = bcce_nNA_objs_r, label = "consistent evidence only, no NA permitted"),    
-  bcvc_sNA = list(data = bcvc_sNA_objs_r, label = "varying comparison only"),    
-  bcve_sNA = list(data = bcve_sNA_objs_r, label = "varying evidence only"),
-  bcve_nNA = list(data = bcve_nNA_objs_r, label = "varying evidence only, no NA permitted")
+  closed = list(data = closed_objs_r, label = "Closed Only"),
+  bsi = list(data = bsi_objs_r, label = 'Best Single Item'),
+  bciai_sNA = list(data = bciai_sNA_objs_r, label = "Best All Items"),
+  bciai_nNA = list(data = bciai_nNA_objs_r, label = "Best All Items (No NA)"),
+  bccc_sNA = list(data = bccc_sNA_objs_r, label = "Consistent Comparison Only"),
+  bccc_nNA = list(data = bccc_nNA_objs_r, label = "Consistent Comparison Only (No NA)"),
+  bcce_sNA = list(data = bcce_sNA_objs_r, label = "Consistent Evidence Only"),    
+  bcce_nNA = list(data = bcce_nNA_objs_r, label = "Consistent Evidence Only (No NA)"),    
+  bcvc_sNA = list(data = bcvc_sNA_objs_r, label = "Varying Comparison Only"),    
+  bcve_sNA = list(data = bcve_sNA_objs_r, label = "Varying Evidence Only"),
+  bcve_nNA = list(data = bcve_nNA_objs_r, label = "Varying Evidence Only (No NA)")
 )
 
 
 # plot
-plot_lines(obj_list, which_dfs = 3)  # warning message is OK - it is for missing 0th item value for closed only
-plot_lines(obj_list, which_dfs = 2)  # shows that there is overall shift in est theta - to be revealed through sim whether this is OK
+plot_2_subplots_whole_sample(obj_list)
 
-# look at some of the individual points on the plot
-mean(closed_objs_r[[3]]$X2)
-mean(bciai_sNA_objs_r[[3]]$X2)
-mean(closed_objs_r[[3]]$X20)
-mean(bciai_sNA_objs_r[[3]]$X20)
+#plot_lines(obj_list, which_dfs = 3)  # warning message is OK - it is for missing 0th item value for closed only
+#plot_lines(obj_list, which_dfs = 2)  # shows that there is overall shift in est theta - to be revealed through sim whether this is OK
+
+## look at some of the individual points on the plot
+#mean(closed_objs_r[[3]]$X2)
+#mean(bciai_sNA_objs_r[[3]]$X2)
+#mean(closed_objs_r[[3]]$X20)
+#mean(bciai_sNA_objs_r[[3]]$X20)
 

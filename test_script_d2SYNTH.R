@@ -1,5 +1,3 @@
-# FIND RESTART HERE below
-
 # synth model testing
 
 # comparing models all viable models
@@ -298,6 +296,7 @@ plot_subplots_whole_sample = function(obj_list) {
   df_indices = 2:5  # The four data frames to be plotted
   
   y_axis_labels = c("Theta Est", "Theta Est SE", "Absolute Distance from Theta Est to True Theta", "Distance from Theta Est to True Theta")
+  x_axis_labels = c(" ", " ", "Closed Items Administered", " ")
   metric_titles = c("Mean Theta Est", "Mean Theta Est SE", "Mean Theta Est Accuracy", "Mean Theta Est Bias")
   metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))
   y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
@@ -331,7 +330,7 @@ plot_subplots_whole_sample = function(obj_list) {
       scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
       theme_minimal() +
       theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-      labs(x = "Closed Items Administered", y = y_axis_labels[i], title = metric_titles[i], color = "Approach", linetype = "Approach") +
+      labs(x = x_axis_labels[i], y = y_axis_labels[i], title = metric_titles[i], color = "Approach", linetype = "Approach") +
       theme(strip.text = element_text(size = 12), axis.title.y = element_text(size = 12))
     
     if (i == 3) {  # Add legend to subplot 3
