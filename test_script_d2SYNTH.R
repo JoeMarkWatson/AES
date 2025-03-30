@@ -242,6 +242,9 @@ get_mean_values <- function(df) {
 
 plot_lines = function(obj_list, which_dfs = 3) {
   
+  # for individual plot plotting
+  # not currently
+  
   # Initialize an empty list to store processed data frames
   processed_dfs <- list()
   
@@ -290,59 +293,132 @@ plot_lines = function(obj_list, which_dfs = 3) {
 }
 
 
-plot_subplots = function(obj_list, metric = "ttd") {
-  
-  metric_dfs = paste0(metric, "_df")
-  
+plot_subplots_whole_sample = function(obj_list) {
   processed_data = list()
+  df_indices = 2:5  # The four data frames to be plotted
   
-  for (cat_name in names(obj_list)) {
-    obj = obj_list[[cat_name]]
-    
-    for (i in 1:4) {
-      df_name = paste0(metric_dfs, i)
-      df = obj$data[[df_name]]
-      
+  y_axis_labels = c("Theta Est", "Theta Est SE", "Absolute Distance from Theta Est to True Theta", "Distance from Theta Est to True Theta")
+  metric_titles = c("Mean Theta Est", "Mean Theta Est SE", "Mean Theta Est Accuracy", "Mean Theta Est Bias")
+  metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))
+  y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
+  
+  plot_list = list()
+  
+  for (i in seq_along(df_indices)) {
+    metric = paste0("Metric ", df_indices[i])
+    plot_data = bind_rows(lapply(names(obj_list), function(cat_name) {
+      obj = obj_list[[cat_name]]
+      df = obj$data[[df_indices[i]]]
       if (!is.null(df)) {
         df_means = get_mean_values(df)
-        df_means$Chunk = paste0("Chunk ", i)
+        df_means$Metric = metric
         df_means$CAT = obj$label
-        processed_data[[paste0(cat_name, "_", i)]] = df_means
+        return(df_means)
       }
+      return(NULL)
+    }))
+    
+    plot_data$item = 0:19
+    
+    color_mapping <- setNames(rep_len(RColorBrewer::brewer.pal(8, "Dark2"), length(unique(plot_data$CAT))),
+                              unique(plot_data$CAT))
+    color_mapping["Closed Only"] <- "black"
+    
+    p = ggplot(plot_data, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
+      geom_point() + 
+      geom_line(size = 1) +
+      scale_color_manual(values = color_mapping) +
+      scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
+      theme_minimal() +
+      theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
+      labs(x = "Closed Items Administered", y = y_axis_labels[i], title = metric_titles[i], color = "Approach", linetype = "Approach") +
+      theme(strip.text = element_text(size = 12), axis.title.y = element_text(size = 12))
+    
+    if (i == 3) {  # Add legend to subplot 3
+      p = p + theme(legend.position = c(0.79, 0.71),
+                    legend.background = element_rect(color = "black", fill = NA, size = 1))
+    } else {
+      p = p + theme(legend.position = "none")
     }
+    
+    plot_list[[i]] = p
   }
   
-  combined_means = bind_rows(processed_data)
-  combined_means$item = 0:19
+  grid.arrange(grobs = plot_list, ncol = 2)
+}
+
+
+plot_subplots_theta_groups = function(obj_list, metric = "ttd", subplot_pstn=3) {
+  if (subplot_pstn == 3) {
+    legend_loc = c(0.79, 0.71)
+  } else {
+    legend_loc = c(0.79, 0.29)
+  }
   
-  y_lab = ifelse(metric == "bias", "Mean Distance from True Theta (Bias)", "Mean Absolute Distance from True Theta")
-  ggtitle = ifelse(metric == "bias", "Bias Across Theta Chunks", "True Theta Distance Across Theta Chunks")
+  processed_data = list()
+  metric_dfs = paste0(metric, "_df")
+  
+  if (metric == "ttd") {
+    y_axis_labels = c("Absolute Distance from Theta Est to True Theta", " ", " ", " ")
+  } else {
+    y_axis_labels = c("Distance from Theta Est to True Theta", " ", " ", " ")
+  }
+  x_axis_labels = c(" ", " ", "Closed Items Administered", " ")
   
   chunk_titles = c("Below -1 SD", "Between -1 SD and 0 SD", "Between 0 SD and 1 SD", "Above 1 SD")
   
-  color_mapping <- setNames(rep_len(RColorBrewer::brewer.pal(8, "Dark2"), length(unique(combined_means$CAT))),
-                            unique(combined_means$CAT))
-  color_mapping["Closed Only"] <- "black"
+  plot_list = list()
   
-  p = ggplot(combined_means, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
-    geom_point() + 
-    geom_line(size = 1) +
-    scale_color_manual(values = color_mapping) +
-    scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
-    theme_minimal() +
-    theme(legend.position = "bottom",
-          panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-    labs(x = "Closed Items Administered", y = y_lab, color = "Approach", linetype = "Approach") +
-    facet_wrap(~Chunk, ncol = 2, labeller = as_labeller(setNames(chunk_titles, paste0("Chunk ", 1:4))))
-  
-  if (metric == "ttd") {
-    p = p + ylim(0, 1)
-  } else if (metric == "bias") {
-    p = p + ylim(-1, 1)
+  for (i in 1:4) {
+    df_name = paste0(metric_dfs, i)
+    
+    plot_data = bind_rows(lapply(names(obj_list), function(cat_name) {
+      obj = obj_list[[cat_name]]
+      df = obj$data[[df_name]]
+      if (!is.null(df)) {
+        df_means = get_mean_values(df)
+        df_means$Chunk = chunk_titles[i]
+        df_means$CAT = obj$label
+        return(df_means)
+      }
+      return(NULL)
+    }))
+    
+    plot_data$item = 0:19
+    
+    color_mapping <- setNames(rep_len(RColorBrewer::brewer.pal(8, "Dark2"), length(unique(plot_data$CAT))),
+                              unique(plot_data$CAT))
+    color_mapping["Closed Only"] <- "black"
+    
+    p = ggplot(plot_data, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
+      geom_point() + 
+      geom_line(size = 1) +
+      scale_color_manual(values = color_mapping) +
+      scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
+      theme_minimal() +
+      theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
+      labs(x = x_axis_labels[i], y = y_axis_labels[i], title = chunk_titles[i], color = "Approach", linetype = "Approach") +
+      theme(strip.text = element_text(size = 12), axis.title.y = element_text(size = 12))
+    
+    if (i == subplot_pstn) {  # Add legend to chosen subplot
+      p = p + theme(legend.position = legend_loc,
+                    legend.background = element_rect(color = "black", fill = NA, size = 1))
+    } else {
+      p = p + theme(legend.position = "none")
+    }
+    
+    if (metric == "ttd") {
+      p = p + ylim(0.18, 1)
+    } else if (metric == "bias") {
+      p = p + ylim(-1, 1)
+    }
+    
+    plot_list[[i]] = p
   }
   
-  print(p)
+  grid.arrange(grobs = plot_list, ncol = 2)
 }
+
 
 
 reverse_code <- function(x, max_score = 5) {
@@ -445,14 +521,13 @@ obj_list <- list(
   bcve_sNA = list(data = bcve_sNA_objs_r, label = "Varying Evidence Only")
 )
 
-# drafting
-plot_subplots_whole_sample(obj_list)
-"# drafting
+#plot_lines(obj_list, which_dfs = 2)  # mean theta hat  # warning message is OK - it is for missing 0th item value for closed only
+#plot_lines(obj_list, which_dfs = 3)  # theta hat SE
+#plot_lines(obj_list, which_dfs = 4)  # absolute distance between theta hat and true theta
+#plot_lines(obj_list, which_dfs = 5)  # distance between theta hat and true theta (bias)
 
-plot_lines(obj_list, which_dfs = 2)  # mean theta hat  # warning message is OK - it is for missing 0th item value for closed only
-plot_lines(obj_list, which_dfs = 3)  # theta hat SE
-plot_lines(obj_list, which_dfs = 4)  # absolute distance between theta hat and true theta
-plot_lines(obj_list, which_dfs = 5)  # distance between theta hat and true theta (bias)
+plot_subplots_whole_sample(obj_list)  # plot all plots together
+
 
 # run the 2nd sim
 closed_objs_r2 = load_n_cat_sim2(closed_only = T, kept_items_df=NA, fit_object=fitc)
@@ -476,11 +551,9 @@ obj_list2 <- list(
   bcce_sNA = list(data = bcce_sNA_objs_r2, label = "Consistent Evidence Only")
 )
 
-plot_subplots(obj_list2, metric = "ttd")  # For true theta distance
-plot_subplots(obj_list2, metric = "bias") # For bias
+plot_subplots_theta_groups(obj_list2, metric = "ttd")  # for theta est accuracy
+plot_subplots_theta_groups(obj_list2, metric = "bias", subplot_pstn = 1)  # for theta est bias
 
-# TODO: remove multi legends. Make baseline black (and dashed).
-# come up with interpretation
 
 # # #
 
