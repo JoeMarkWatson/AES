@@ -207,14 +207,39 @@ cat_sim2 = function(fit_obj, data_all) {
 
 
 load_n_cat_sim = function(closed_only=F, kept_items_df, fit_object) {
-  if (closed_only) {
-    itk_df = data_all[c(closed_items, "ID", "true_theta")]
-  } else {
-    itk_df = load_kept_GPT_items(kept_items = kept_items_df, fit = fit_object)
-  }
-  r_obj = cat_sim(fit_obj=fit_object, data_all=itk_df)
+  theta_range = seq(-4, 4, 0.1)
+  # get testinfo of all items (x and sometimes o)
+  model_test_info = testinfo(x=fit_object, Theta=theta_range)  
   
-  return(r_obj)
+  if (closed_only) {
+    # load data
+    itk_df = data_all[c(closed_items, "ID", "true_theta")]
+    
+    # get median x item iteminfo
+    model_items_info = testinfo(x = fit_object, Theta = theta_range, individual = TRUE)  # Get item info matrix: rows = theta, columns = items
+    selected_item_s_info = apply(model_items_info, 1, median)  # For each theta, get the median info value across items
+    
+  } else {
+    # load data
+    itk_df = load_kept_GPT_items(kept_items = kept_items_df, fit = fit_object)
+    
+    # get o item iteminfo
+    o_item_names_meta = colnames(itk_df)[!grepl("^q", colnames(itk_df))]  # remove q items
+    o_item_names = setdiff(o_item_names_meta, c("ID", "true_theta"))  # Also exclude metadata columns
+    all_item_names = colnames(fit_object@Data$data)
+    o_item_indices = match(o_item_names, all_item_names)
+    
+    model_items_info = testinfo(x = fit_object, Theta = theta_range, which.items = o_item_indices)
+    if (is.null(dim(model_items_info))) {
+      model_items_info = matrix(model_items_info, ncol = 1)
+    }
+    selected_item_s_info = rowSums(model_items_info)  # For each theta, sum the info across the selected items
+  }
+  
+  r_obj = cat_sim(fit_obj=fit_object, data_all=itk_df)
+  r_obj_ext = c(r_obj, list(model_test_info), list(selected_item_s_info))  # append model_test_info and selected_item_s_info to r_obj
+  
+  return(r_obj_ext)
 }
 
 
@@ -225,6 +250,8 @@ load_n_cat_sim2 = function(closed_only=F, kept_items_df, fit_object) {
     itk_df = load_kept_GPT_items(kept_items = kept_items_df, fit = fit_object)
   }
   r_obj = cat_sim2(fit_obj=fit_object, data_all=itk_df)
+  
+  
   
   return(r_obj)
 }
@@ -291,15 +318,18 @@ plot_lines = function(obj_list, which_dfs = 3) {
 }
 
 
-plot_subplots_whole_sample = function(obj_list) {
+plot_subplots_whole_sample = function(obj_list, color_mapping=color_map) {
   processed_data = list()
-  df_indices = 2:5  # The four data frames to be plotted
+  df_indices = 2:5
   
   y_axis_labels = c("Theta Est", "Theta Est SE", "Absolute Distance from Theta Est to True Theta", "Distance from Theta Est to True Theta")
   x_axis_labels = c(" ", " ", "Closed Items Administered", " ")
   metric_titles = c("Mean Theta Est", "Mean Theta Est SE", "Mean Theta Est Accuracy", "Mean Theta Est Bias")
   metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))
   y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
+  
+  # Define linetypes
+  linetypes <- setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))
   
   plot_list = list()
   
@@ -319,22 +349,21 @@ plot_subplots_whole_sample = function(obj_list) {
     
     plot_data$item = 0:19
     
-    color_mapping <- setNames(rep_len(RColorBrewer::brewer.pal(8, "Dark2"), length(unique(plot_data$CAT))),
-                              unique(plot_data$CAT))
-    color_mapping["Closed Only"] <- "black"
+    # Ensure factor level ordering for CAT to put Closed Only first
+    plot_data$CAT <- factor(plot_data$CAT, levels = names(color_mapping))
     
     p = ggplot(plot_data, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
       geom_point() + 
       geom_line(size = 1) +
       scale_color_manual(values = color_mapping) +
-      scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
+      scale_linetype_manual(values = linetypes) +
       theme_minimal() +
       theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-      labs(x = x_axis_labels[i], y = y_axis_labels[i], title = metric_titles[i], color = "Approach", linetype = "Approach") +
+      labs(x = x_axis_labels[i], y = y_labels[[i]], title = metric_titles[i], color = "Approach", linetype = "Approach") +
       theme(strip.text = element_text(size = 12), axis.title.y = element_text(size = 12))
     
-    if (i == 3) {  # Add legend to subplot 3
-      p = p + theme(legend.position = c(0.79, 0.71),
+    if (i == 2) {
+      p = p + theme(legend.position = c(0.78, 0.63),
                     legend.background = element_rect(color = "black", fill = NA, size = 1))
     } else {
       p = p + theme(legend.position = "none")
@@ -343,12 +372,51 @@ plot_subplots_whole_sample = function(obj_list) {
     plot_list[[i]] = p
   }
   
+  # Plot 5: model_test_info
+  plot5_data = bind_rows(lapply(names(obj_list), function(cat_name) {
+    obj = obj_list[[cat_name]]
+    tibble(theta = seq(-4, 4, 0.1),
+           info = obj$data[[6]],
+           CAT = obj$label)
+  }))
+  plot5_data$CAT <- factor(plot5_data$CAT, levels = names(color_mapping))
+  
+  p5 = ggplot(plot5_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
+    geom_line(size = 1) +
+    theme_minimal() +
+    labs(title = "Test Information", x = expression(theta), y = "Information") +
+    scale_color_manual(values = color_mapping) +
+    scale_linetype_manual(values = linetypes) +
+    theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
+          legend.position = "none")
+  plot_list[[5]] = p5
+  
+  # Plot 6: selected_item_s_info
+  plot6_data = bind_rows(lapply(names(obj_list), function(cat_name) {
+    obj = obj_list[[cat_name]]
+    tibble(theta = seq(-4, 4, 0.1),
+           info = obj$data[[7]],
+           CAT = obj$label)
+  }))
+  plot6_data$CAT <- factor(plot6_data$CAT, levels = names(color_mapping))
+  
+  p6 = ggplot(plot6_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
+    geom_line(size = 1) +
+    theme_minimal() +
+    labs(title = "Item Information from Open and Median Closed Items", x = expression(theta), y = "Information") +
+    scale_color_manual(values = color_mapping) +
+    scale_linetype_manual(values = linetypes) +
+    theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
+          legend.position = "none")
+  plot_list[[6]] = p6
+  
+  # Combine all plots
   grid.arrange(grobs = plot_list, ncol = 2)
 }
 
 
-plot_subplots_theta_groups = function(obj_list, metric = "ttd", subplot_pstn=3) {
-  if (subplot_pstn == 3) {
+plot_subplots_theta_groups = function(obj_list, metric = "ttd", subplot_pstn = 2, color_mapping = color_map) {
+  if (subplot_pstn == 2) {
     legend_loc = c(0.79, 0.71)
   } else {
     legend_loc = c(0.79, 0.29)
@@ -385,21 +453,23 @@ plot_subplots_theta_groups = function(obj_list, metric = "ttd", subplot_pstn=3) 
     
     plot_data$item = 0:19
     
-    color_mapping <- setNames(rep_len(RColorBrewer::brewer.pal(8, "Dark2"), length(unique(plot_data$CAT))),
-                              unique(plot_data$CAT))
-    color_mapping["Closed Only"] <- "black"
+    # Force legend order to match color_mapping (with "Closed Only" first)
+    plot_data$CAT = factor(plot_data$CAT, levels = names(color_mapping))
     
     p = ggplot(plot_data, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
       geom_point() + 
       geom_line(size = 1) +
       scale_color_manual(values = color_mapping) +
-      scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
+      scale_linetype_manual(values = setNames(
+        ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"),
+        names(color_mapping)
+      )) +
       theme_minimal() +
       theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
       labs(x = x_axis_labels[i], y = y_axis_labels[i], title = chunk_titles[i], color = "Approach", linetype = "Approach") +
       theme(strip.text = element_text(size = 12), axis.title.y = element_text(size = 12))
     
-    if (i == subplot_pstn) {  # Add legend to chosen subplot
+    if (i == subplot_pstn) {
       p = p + theme(legend.position = legend_loc,
                     legend.background = element_rect(color = "black", fill = NA, size = 1))
     } else {
@@ -417,7 +487,6 @@ plot_subplots_theta_groups = function(obj_list, metric = "ttd", subplot_pstn=3) 
   
   grid.arrange(grobs = plot_list, ncol = 2)
 }
-
 
 
 reverse_code <- function(x, max_score = 5) {
@@ -512,12 +581,23 @@ bcce_sNA_objs_r = load_n_cat_sim(kept_items_df = datasets$items_to_keep_bcce_sNA
 obj_list <- list(
   closed = list(data = closed_objs_r, label = "Closed Only"),
   bsi = list(data = bsi_objs_r, label = "Best Single Item"),
+  bciai_sNA = list(data = bciai_sNA_objs_r, label = "Best All Items"),
   bccc_sNA = list(data = bccc_sNA_objs_r, label = "Consistent Comparison Only"),  
   bcce_sNA = list(data = bcce_sNA_objs_r, label = "Consistent Evidence Only"),    
-  bciai_sNA = list(data = bciai_sNA_objs_r, label = "Best All Items"),
-  bcvc_nNA = list(data = bcvc_nNA_objs_r, label = "Varying Comparison Only (no NA)"),    
-  bcvc_sNA = list(data = bcvc_sNA_objs_r, label = "Varying Comparison Only"),    
+  bcvc_nNA = list(data = bcvc_nNA_objs_r, label = "Varying Comparison Only"),    
+  bcvc_sNA = list(data = bcvc_sNA_objs_r, label = "Varying Comparison Only (some NA)"),    
   bcve_sNA = list(data = bcve_sNA_objs_r, label = "Varying Evidence Only")
+)
+
+color_map <- c(
+  "Closed Only" = "black",
+  "Best Single Item" = "#1f78b4",
+  "Consistent Comparison Only" = "#d95f02",
+  "Consistent Evidence Only" = "#7570b3",
+  "Best All Items" = "#e7298a",
+  "Varying Comparison Only" = "#33a02c",
+  "Varying Comparison Only (some NA)" = "#e6ab02",
+  "Varying Evidence Only" = "#a6761d"
 )
 
 #plot_lines(obj_list, which_dfs = 2)  # mean theta hat  # warning message is OK - it is for missing 0th item value for closed only
@@ -543,14 +623,14 @@ obj_list2 <- list(
   closed = list(data = closed_objs_r2, label = "Closed Only"),
   bsi = list(data = bsi_objs_r2, label = "Best Single Item"),
   bciai_sNA = list(data = bciai_sNA_objs_r2, label = "Best All Items"),
-  bcvc_sNA = list(data = bcvc_sNA_objs_r2, label = "Varying Comparison Only"),
-  bcvc_nNA = list(data = bcvc_nNA_objs_r2, label = "Varying Comparison Only (No NA)"),
+  bcvc_sNA = list(data = bcvc_sNA_objs_r2, label = "Varying Comparison Only (some NA)"),
+  bcvc_nNA = list(data = bcvc_nNA_objs_r2, label = "Varying Comparison Only"),
   bcve_sNA = list(data = bcve_sNA_objs_r2, label = "Varying Evidence Only"),
   bccc_sNA = list(data = bccc_sNA_objs_r2, label = "Consistent Comparison Only"),
   bcce_sNA = list(data = bcce_sNA_objs_r2, label = "Consistent Evidence Only")
 )
 
-plot_subplots_theta_groups(obj_list2, metric = "ttd")  # for theta est accuracy
+plot_subplots_theta_groups(obj_list2, metric = "ttd", subplot_pstn = 2)  # for theta est accuracy
 plot_subplots_theta_groups(obj_list2, metric = "bias", subplot_pstn = 1)  # for theta est bias
 
 
