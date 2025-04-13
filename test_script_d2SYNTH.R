@@ -594,15 +594,16 @@ obj_list <- list(
 )
 
 color_map <- c(
-  "Closed Only" = "black",
-  "Best Single Item" = "#1f78b4",
   "Consistent Comparison Only" = "#d95f02",
   "Consistent Evidence Only" = "#7570b3",
-  "Best All Items" = "#e7298a",
-  "Varying Comparison Only" = "#33a02c",
+  "Varying Comparison Only" = "#15703c",
   "Varying Comparison Only (some NA)" = "#e6ab02",
-  "Varying Evidence Only" = "#a6761d"
+  "Varying Evidence Only" = "#a6761d",
+  "Best Single Item" = "#1f78b4",
+  "Best All Items" = "#e7298a",
+  "Closed Only" = "black"
 )
+
 
 #plot_lines(obj_list, which_dfs = 2)  # mean theta hat  # warning message is OK - it is for missing 0th item value for closed only
 #plot_lines(obj_list, which_dfs = 3)  # theta hat SE

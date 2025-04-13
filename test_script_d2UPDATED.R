@@ -43,7 +43,7 @@ load_kept_GPT_items = function(fit, kept_items, df=data_all) {
   }
   
   #df = df[c(closed_items, kept_items$item)]
-  df = df[c(closed_items, kept_items$item, "ID", "fitcF1")]
+  df = df[c(closed_items, kept_items$item, "ID", "fitcF1", "suicide_ideation")]
   
   return(df)
 }
@@ -59,59 +59,55 @@ create_obj = function(ur_df=data_all, closed_item_names=closed_items) {
 
 
 cat_sim = function(fit_obj, data_all) {
-  
   all_items = names(data_all)
   closed_items = all_items[grepl("q", all_items)]
   
-  params = coef(fit_obj, IRTpar=T, simplify=TRUE)
+  params = coef(fit_obj, IRTpar = TRUE, simplify = TRUE)
   itembank = params$items
   itembank_closed = itembank[rownames(itembank) %in% closed_items, ]
   
+  # Initialize output objects
   q_just_asked_df = create_obj(data_all)
   theta_df = create_obj(data_all)
   tse_df = create_obj(data_all)
   ctd_df = create_obj(data_all)
   
-  open_items = all_items[!all_items %in% c(closed_items, 'ID', 'fitcF1')]  # which may be none
+  open_items = all_items[!all_items %in% c(closed_items, 'ID', 'fitcF1', 'suicide_ideation')]
+  suicide_ideation_all = data_all$suicide_ideation  # External measure for all respondents
   
-  for (r in c(1:nrow(data_all))) {
-    
+  # Loop over respondents
+  for (r in 1:nrow(data_all)) {
     closed_resps = rep(NA, length(closed_items))
-    fitcF1 = data_all[r, 'fitcF1']
     outvec = c()
     q_just_asked_vec = c()
     theta_vec = c()
     tse_vec = c()
     ctd_vec = c()
-    # 
     
     gptm_only_resp_pat = as.vector(unlist(data_all[open_items][r, ]))
     
-    for (i in c(0:length(closed_items))) {
+    # Loop over CAT steps
+    for (i in 0:length(closed_items)) {
       gptm_resp_pat = c(closed_resps, gptm_only_resp_pat)
       
-      if ((sum(!is.na(gptm_resp_pat))) > 0) {  # to produce NA for 0th closed item where model uses closed only
-        fso_fm = fscores(fit_obj, response.pattern=gptm_resp_pat)
+      if (sum(!is.na(gptm_resp_pat)) > 0) {
+        fso_fm = fscores(fit_obj, response.pattern = gptm_resp_pat)
         fso_F1 = fso_fm[colnames(fso_fm) == 'F1']
         fso_SE_F1 = fso_fm[colnames(fso_fm) == 'SE_F1']
-        # could poss revert to 'MAP' when it convergences. Or could go to NA. (Or, can change source data, via idea on iPhone notes.)
       } else {
-        fso_fm = NA
         fso_F1 = NA
         fso_SE_F1 = NA
       }
       
-      q_just_asked_vec = c(q_just_asked_vec, ifelse(length(outvec)==0, NA, outvec[length(outvec)]))
+      q_just_asked_vec = c(q_just_asked_vec, ifelse(length(outvec) == 0, NA, outvec[length(outvec)]))
       theta_vec = c(theta_vec, fso_F1)
       tse_vec = c(tse_vec, fso_SE_F1)
-      ctd_vec = c(ctd_vec, abs(fso_F1 - fitcF1))
+      ctd_vec = c(ctd_vec, abs(fso_F1 - data_all[r, 'fitcF1']))
       
       if (sum(is.na(closed_resps)) >= 1) {
-        fso_ni = nextItem(itemBank = itembank_closed, model = 'GRM', theta = fso_F1, out=outvec)
-        fso_niName = fso_ni$name
-        fso_niNum = fso_ni$item
-        closed_resps[fso_niNum] = data_all[r, fso_niName]
-        outvec = c(outvec, fso_niNum)
+        fso_ni = nextItem(itemBank = itembank_closed, model = 'GRM', theta = fso_F1, out = outvec)
+        closed_resps[fso_ni$item] = data_all[r, fso_ni$name]
+        outvec = c(outvec, fso_ni$item)
       }
     }
     
@@ -119,9 +115,24 @@ cat_sim = function(fit_obj, data_all) {
     theta_df[r, ] = theta_vec
     tse_df[r, ] = tse_vec
     ctd_df[r, ] = ctd_vec
-    
   }
-  return(list(q_just_asked_df, theta_df, tse_df, ctd_df))
+  
+  # Compute correlations AFTER all respondents are processed
+  cor_vec = sapply(1:ncol(theta_df), function(i) {
+    if (all(is.na(theta_df[, i]))) {
+      NA
+    } else {
+      cor(theta_df[, i], suicide_ideation_all, use = "complete.obs")
+    }
+  })
+  
+  return(list(
+    q_just_asked_df,
+    theta_df,
+    tse_df,
+    ctd_df,
+    cor_vec
+  ))
 }
 
 
@@ -133,106 +144,74 @@ get_mean_values <- function(df) {
 }
 
 
-load_n_cat_sim = function(closed_only=F, kept_items_df, fit_object) {
+load_n_cat_sim = function(closed_only = FALSE, kept_items_df, fit_object) {
   theta_range = seq(-4, 4, 0.1)
-  # get testinfo of all items (x and sometimes o)
-  model_test_info = testinfo(x=fit_object, Theta=theta_range)  
+  
+  # Get test information for all items
+  model_test_info = testinfo(x = fit_object, Theta = theta_range)
   
   if (closed_only) {
-    # load data
-    itk_df = data_all[c(closed_items, "ID", "fitcF1")]
+    # Load data (now includes suicide_ideation)
+    itk_df = data_all[c(closed_items, "ID", "fitcF1", "suicide_ideation")]  
     
-    # get median x item iteminfo
-    model_items_info = testinfo(x = fit_object, Theta = theta_range, individual = TRUE)  # Get item info matrix: rows = theta, columns = items
-    selected_item_s_info = apply(model_items_info, 1, median)  # For each theta, get the median info value across items
+    # Get median item information for closed items
+    model_items_info = testinfo(x = fit_object, Theta = theta_range, individual = TRUE)
+    selected_item_s_info = apply(model_items_info, 1, median)  # Median info across items
     
   } else {
-    # load data
+    # Load data (includes GPT items + suicide_ideation)
     itk_df = load_kept_GPT_items(kept_items = kept_items_df, fit = fit_object)
     
-    # get o item iteminfo
-    o_item_names_meta = colnames(itk_df)[!grepl("^q", colnames(itk_df))]  # remove q items
-    o_item_names = setdiff(o_item_names_meta, c("ID", "fitcF1"))  # Also exclude metadata columns
+    # Get information for faux-items (open-ended)
+    o_item_names_meta = colnames(itk_df)[!grepl("^q", colnames(itk_df))]  # Exclude closed items
+    o_item_names = setdiff(o_item_names_meta, c("ID", "fitcF1", "suicide_ideation"))  # Exclude metadata
     all_item_names = colnames(fit_object@Data$data)
     o_item_indices = match(o_item_names, all_item_names)
     
     model_items_info = testinfo(x = fit_object, Theta = theta_range, which.items = o_item_indices)
-
+    
     if (is.null(dim(model_items_info))) {
       model_items_info = matrix(model_items_info, ncol = 1)
     }
-    selected_item_s_info = rowSums(model_items_info)  # For each theta, sum the info across the selected items
+    selected_item_s_info = rowSums(model_items_info)  # Sum info across faux-items
   }
   
-  r_obj = cat_sim(fit_obj=fit_object, data_all=itk_df)
-  r_obj_ext = c(r_obj, list(model_test_info), list(selected_item_s_info))  # append model_test_info and selected_item_s_info to r_obj
+  # Run CAT simulation (now returns cor_df)
+  r_obj = cat_sim(fit_obj = fit_object, data_all = itk_df)
+  
+  # Append additional info (including correlation results)
+  r_obj_ext = c(
+    r_obj, 
+    list(
+      model_test_info = model_test_info,
+      selected_item_s_info = selected_item_s_info
+    )
+  )
   
   return(r_obj_ext)
 }
 
 
-plot_lines = function(obj_list, which_dfs = 3) {
-  # old plotting code - can be used to look at individ subplots
-  
-  # Initialize an empty list to store processed data frames
-  processed_dfs <- list()
-  
-  # Loop through each category in obj_list
-  for (cat_name in names(obj_list)) {
-    obj <- obj_list[[cat_name]]
-    df <- obj$data[[which_dfs]]
-    
-    # Only process if df is not NULL
-    if (!is.null(df)) {
-      df_means <- get_mean_values(df)
-      df_means$CAT <- obj$label
-      processed_dfs[[cat_name]] <- df_means  # Store processed data
-    }
-  }
-  
-  # Combine all processed data frames into one
-  combined_means <- bind_rows(processed_dfs)
-  
-  # Ensure "item" column is added correctly
-  combined_means$item = 0:19
-  rownames(combined_means) <- NULL
-  
-  # Define plot labels dynamically
-  y_lab <- ifelse(which_dfs == 5, "Mean Distance from True Theta (Bias)",
-                  ifelse(which_dfs == 4, "Mean Absolute Distance from True Theta", 
-                         ifelse(which_dfs == 2, "Mean Theta", "Mean Theta Est SE")))
-  ggtitle <- ifelse(which_dfs == 5, "Connected Scatter Plot of Mean Distance Between Theta Hat and True Theta (Bias)",
-                    ifelse(which_dfs == 4, "Connected Scatter Plot of Mean Absolute Distance Between Theta Hat and True Theta", 
-                           ifelse(which_dfs == 2, "Connected Scatter Plot of Mean Theta Hat", "Connected Scatter Plot of Mean Theta Hat Est SE")))
-  
-  # Generate plot
-  p <- ggplot(combined_means, aes(y = mean_value, x = item, color = CAT)) +
-    geom_point() + 
-    geom_line(aes(group = CAT), size = 1) +
-    theme_minimal() +
-    labs(x = "Closed Items Administered", y = y_lab, color = "Approach") +
-    ggtitle(ggtitle)
-  
-  # Adjust y-axis if which_dfs is not 2, 4 or 5
-  if (!(which_dfs %in% c(2, 4, 5))) {
-    p <- p + scale_y_continuous(expand = expansion(mult = c(0, 0.05)), limits = c(0.27, NA))
-  }
-  
-  print(p)
-}
-
-
 plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
   processed_data = list()
-  df_indices = 2:4  # Plot type 1 for first three subplots
+  df_indices = 2:5  # Plot type 1 for first three subplots
   
   # Define linetypes
   linetypes <- setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))
   
-  y_axis_labels = c("Theta Est", "Theta Est SE", "Absolute Distance from Theta Est to Final Closed Only Theta Est")
-  x_axis_labels = c("Closed Items Administered")
-  metric_titles = c("Mean Theta Est", "Mean Theta Est SE", "Mean Theta Est Distance from Final Closed Only Theta Est")
-  metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))  # appears redundant
+  y_axis_labels = c(
+    "Mean θ Estimate", 
+    "Mean θ Estimate Standard Error", 
+    "Mean Absolute Divergence from Closed-Only θ",
+    "Correlation with Suicidality"  # New label
+  )
+  x_axis_labels = rep("Closed Items Administered", 4)
+  metric_titles = c(
+    "Theta Estimation", 
+    "Estimation Precision", 
+    "Divergence from Closed-Only Estimates",
+    "Convergent Validity"  # New title
+  )
   y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
   
   plot_list = list()
@@ -241,9 +220,21 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
     metric = paste0("Metric ", df_indices[i])
     plot_data = bind_rows(lapply(names(obj_list), function(cat_name) {
       obj = obj_list[[cat_name]]
-      df = obj$data[[df_indices[i]]]
+      if (df_indices[i] <= 4) {
+        # Original metrics (theta, SE, distance)
+        df = obj$data[[df_indices[i]]]
+      } else {
+        # New correlation metric (5th element)
+        df = data.frame(matrix(obj$data[[5]], nrow = 1))  # Convert vector to 1-row df
+      }
+      
       if (!is.null(df)) {
-        df_means = get_mean_values(df)
+        df_means = if (df_indices[i] <= 4) {
+          get_mean_values(df)
+        } else {
+          # For correlation, we already have aggregated values
+          data.frame(mean_value = as.numeric(df[1, ]))
+        }
         df_means$Metric = metric
         df_means$CAT = obj$label
         return(df_means)
@@ -271,7 +262,7 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
       theme(strip.text = element_text(size = 12), axis.title.y = element_text(size = 12))
     
     if (i == 2) {
-      p = p + theme(legend.position = c(0.72, 0.64),
+      p = p + theme(legend.position = c(0.77, 0.61),
                     legend.background = element_rect(color = "black", fill = NA, size = 1))
     } else {
       p = p + theme(legend.position = "none")
@@ -292,7 +283,7 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
   p_tinfo = ggplot(plot_tinfo_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
-    labs(title = "Test Information", x = expression(theta), y = "Information") +
+    labs(title = "Total Test Information", x = expression(theta), y = "Information") +
     scale_color_manual(values = color_mapping) +
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -311,7 +302,7 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
   p_iinfo = ggplot(plot_iinfo_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
-    labs(title = "Item Information from Open and Median Closed Items", x = expression(theta), y = "Information") +
+    labs(title = "Information From GPT Items vs. Median Closed Item", x = expression(theta), y = "Information") +
     scale_color_manual(values = color_mapping) +
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -398,6 +389,10 @@ fitc_ests_out <- fscores(fitc, response.pattern = data_all[, closed_items])
 colnames(fitc_ests_out) <- c("fitcF1", "fitcSE_F1")
 data_all <- cbind(data_all, fitc_ests_out)  # put on rhs of existing data_all cols
 
+# add suicide ideation response
+ideation_df = read.csv('/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/ideation_df_TEMPd2.csv')
+data_all <- merge(data_all, ideation_df, by = "ID")
+
 
 # run the sim
 closed_objs_r = load_n_cat_sim(closed_only = T, kept_items_df=NA, fit_object=fitc)
@@ -413,7 +408,7 @@ bcve_sNA_objs_r = load_n_cat_sim(kept_items_df = datasets$items_to_keep_bcve_sNA
 bcve_nNA_objs_r = load_n_cat_sim(kept_items_df = datasets$items_to_keep_bcve_nNA, fit_object = fit_bcve_nNA)
 
 
-# check sim output
+# plot sim output
 obj_list <- list(
   closed = list(data = closed_objs_r, label = "Closed Only"),
   bsi = list(data = bsi_objs_r, label = 'Best Single Item'),
@@ -429,29 +424,26 @@ obj_list <- list(
 )
 
 color_map <- c(
-  "Closed Only" = "black",  # also in SYNTH
-  "Best Single Item" = "#1f78b4",  # also in SYNTH
-  "Best All Items" = "#e7298a",  # also in SYNTH
-  "Best All Items (some NA)" = "#ffd92f",
   "Consistent Comparison Only" = "#d95f02",  # also in SYNTH
   "Consistent Comparison Only (some NA)" = "#7fd3b5",
   "Consistent Evidence Only" = "#7570b3",  # also in SYNTH
   "Consistent Evidence Only (some NA)" = "#fb8072",
   "Varying Comparison Only" = "#15703c",             
   "Varying Evidence Only" = "#a6761d",  # also in SYNTH
-  "Varying Evidence Only (some NA)" = "#80b1d3"
+  "Varying Evidence Only (some NA)" = "#80b1d3",
+  "Best Single Item" = "#1f78b4",  # also in SYNTH
+  "Best All Items" = "#e7298a",  # also in SYNTH
+  "Best All Items (some NA)" = "#ffd92f",
+  "Closed Only" = "black"  # also in SYNTH
 )
 
 
 # plot
 plot_2_subplots_whole_sample(obj_list)
 
-#plot_lines(obj_list, which_dfs = 3)  # warning message is OK - it is for missing 0th item value for closed only
-#plot_lines(obj_list, which_dfs = 2)  # shows that there is overall shift in est theta - to be revealed through sim whether this is OK
 
 ## look at some of the individual points on the plot
 #mean(closed_objs_r[[3]]$X2)
 #mean(bciai_sNA_objs_r[[3]]$X2)
 #mean(closed_objs_r[[3]]$X20)
 #mean(bciai_sNA_objs_r[[3]]$X20)
-
