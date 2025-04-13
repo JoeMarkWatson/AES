@@ -42,7 +42,8 @@ load_kept_GPT_items = function(fit, kept_items, df=data_all) {
     }
   }
   
-  df = df[c(closed_items, kept_items$item)]
+  #df = df[c(closed_items, kept_items$item)]
+  df = df[c(closed_items, kept_items$item, "ID", "fitcF1")]
   
   return(df)
 }
@@ -69,16 +70,20 @@ cat_sim = function(fit_obj, data_all) {
   q_just_asked_df = create_obj(data_all)
   theta_df = create_obj(data_all)
   tse_df = create_obj(data_all)
+  ctd_df = create_obj(data_all)
   
-  open_items = all_items[!all_items %in% c(closed_items, 'ID')]  # which may be none
+  open_items = all_items[!all_items %in% c(closed_items, 'ID', 'fitcF1')]  # which may be none
   
   for (r in c(1:nrow(data_all))) {
     
     closed_resps = rep(NA, length(closed_items))
+    fitcF1 = data_all[r, 'fitcF1']
     outvec = c()
     q_just_asked_vec = c()
     theta_vec = c()
     tse_vec = c()
+    ctd_vec = c()
+    # 
     
     gptm_only_resp_pat = as.vector(unlist(data_all[open_items][r, ]))
     
@@ -99,6 +104,7 @@ cat_sim = function(fit_obj, data_all) {
       q_just_asked_vec = c(q_just_asked_vec, ifelse(length(outvec)==0, NA, outvec[length(outvec)]))
       theta_vec = c(theta_vec, fso_F1)
       tse_vec = c(tse_vec, fso_SE_F1)
+      ctd_vec = c(ctd_vec, abs(fso_F1 - fitcF1))
       
       if (sum(is.na(closed_resps)) >= 1) {
         fso_ni = nextItem(itemBank = itembank_closed, model = 'GRM', theta = fso_F1, out=outvec)
@@ -112,9 +118,10 @@ cat_sim = function(fit_obj, data_all) {
     q_just_asked_df[r, ] = q_just_asked_vec
     theta_df[r, ] = theta_vec
     tse_df[r, ] = tse_vec
+    ctd_df[r, ] = ctd_vec
     
   }
-  return(list(q_just_asked_df, theta_df, tse_df))
+  return(list(q_just_asked_df, theta_df, tse_df, ctd_df))
 }
 
 
@@ -133,7 +140,7 @@ load_n_cat_sim = function(closed_only=F, kept_items_df, fit_object) {
   
   if (closed_only) {
     # load data
-    itk_df = data_all[c(closed_items, "ID")]
+    itk_df = data_all[c(closed_items, "ID", "fitcF1")]
     
     # get median x item iteminfo
     model_items_info = testinfo(x = fit_object, Theta = theta_range, individual = TRUE)  # Get item info matrix: rows = theta, columns = items
@@ -145,11 +152,12 @@ load_n_cat_sim = function(closed_only=F, kept_items_df, fit_object) {
     
     # get o item iteminfo
     o_item_names_meta = colnames(itk_df)[!grepl("^q", colnames(itk_df))]  # remove q items
-    o_item_names = setdiff(o_item_names_meta, c("ID"))  # Also exclude metadata columns
+    o_item_names = setdiff(o_item_names_meta, c("ID", "fitcF1"))  # Also exclude metadata columns
     all_item_names = colnames(fit_object@Data$data)
     o_item_indices = match(o_item_names, all_item_names)
     
     model_items_info = testinfo(x = fit_object, Theta = theta_range, which.items = o_item_indices)
+
     if (is.null(dim(model_items_info))) {
       model_items_info = matrix(model_items_info, ncol = 1)
     }
@@ -216,15 +224,15 @@ plot_lines = function(obj_list, which_dfs = 3) {
 
 plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
   processed_data = list()
-  df_indices = 2:3  # Only plotting the first two subplots
+  df_indices = 2:4  # Plot type 1 for first three subplots
   
   # Define linetypes
   linetypes <- setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))
   
-  y_axis_labels = c("Theta Est", "Theta Est SE")
-  x_axis_labels = c("Closed Items Administered", " ")
-  metric_titles = c("Mean Theta Est", "Mean Theta Est SE")
-  metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))
+  y_axis_labels = c("Theta Est", "Theta Est SE", "Absolute Distance from Theta Est to Final Closed Only Theta Est")
+  x_axis_labels = c("Closed Items Administered")
+  metric_titles = c("Mean Theta Est", "Mean Theta Est SE", "Mean Theta Est Distance from Final Closed Only Theta Est")
+  metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))  # appears redundant
   y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
   
   plot_list = list()
@@ -272,16 +280,16 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
     plot_list[[i]] = p
   }
   
-  # Plot 3: model_test_info
-  plot3_data = bind_rows(lapply(names(obj_list), function(cat_name) {
+  # 2nd to last plot: model_test_info
+  plot_tinfo_data = bind_rows(lapply(names(obj_list), function(cat_name) {
     obj = obj_list[[cat_name]]
     tibble(theta = seq(-4, 4, 0.1),
-           info = obj$data[[4]],
+           info = obj$data[[max(df_indices)+1]],
            CAT = obj$label)
   }))
-  plot3_data$CAT <- factor(plot3_data$CAT, levels = names(color_mapping))
+  plot_tinfo_data$CAT <- factor(plot_tinfo_data$CAT, levels = names(color_mapping))
   
-  p3 = ggplot(plot3_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
+  p_tinfo = ggplot(plot_tinfo_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
     labs(title = "Test Information", x = expression(theta), y = "Information") +
@@ -289,18 +297,18 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
           legend.position = "none")
-  plot_list[[3]] = p3
+  plot_list[[length(plot_list) + 1]] <- p_tinfo
   
-  # Plot 6: selected_item_s_info
-  plot4_data = bind_rows(lapply(names(obj_list), function(cat_name) {
+  # Last plot: selected_item_s_info
+  plot_iinfo_data = bind_rows(lapply(names(obj_list), function(cat_name) {
     obj = obj_list[[cat_name]]
     tibble(theta = seq(-4, 4, 0.1),
-           info = obj$data[[5]],
+           info = obj$data[[max(df_indices)+2]],
            CAT = obj$label)
   }))
-  plot4_data$CAT <- factor(plot4_data$CAT, levels = names(color_mapping))
+  plot_iinfo_data$CAT <- factor(plot_iinfo_data$CAT, levels = names(color_mapping))
   
-  p4 = ggplot(plot4_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
+  p_iinfo = ggplot(plot_iinfo_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
     labs(title = "Item Information from Open and Median Closed Items", x = expression(theta), y = "Information") +
@@ -308,7 +316,7 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
           legend.position = "none")
-  plot_list[[4]] = p4
+  plot_list[[length(plot_list) + 1]] <- p_iinfo
   
   grid.arrange(grobs = plot_list, ncol = 2)
 }
@@ -385,7 +393,12 @@ data_all = merge(data_all, datasets$MarksGPT_DO_compare, by = 'ID')
 data_all[data_all == "False"] = F
 data_all[data_all == "True"] = T
 
-#
+# add final theta est from closed items to data all
+fitc_ests_out <- fscores(fitc, response.pattern = data_all[, closed_items])
+colnames(fitc_ests_out) <- c("fitcF1", "fitcSE_F1")
+data_all <- cbind(data_all, fitc_ests_out)  # put on rhs of existing data_all cols
+
+
 # run the sim
 closed_objs_r = load_n_cat_sim(closed_only = T, kept_items_df=NA, fit_object=fitc)
 bsi_objs_r = load_n_cat_sim(kept_items_df = datasets$items_to_keep_bsi, fit_object = fit_bsi)

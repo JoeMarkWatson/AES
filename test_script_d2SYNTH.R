@@ -82,7 +82,8 @@ cat_sim = function(fit_obj, data_all) {
     q_just_asked_vec = c()
     theta_vec = c()
     tse_vec = c()
-    # ttd_vec = c()  # true theta distance vector
+    ttd_vec = c()  # true theta distance vector
+    bias_vec = c()  # bias vector
     
     gptm_only_resp_pat = as.vector(unlist(data_all[open_items][r, ]))
     
@@ -103,8 +104,8 @@ cat_sim = function(fit_obj, data_all) {
       q_just_asked_vec = c(q_just_asked_vec, ifelse(length(outvec)==0, NA, outvec[length(outvec)]))
       theta_vec = c(theta_vec, fso_F1)
       tse_vec = c(tse_vec, fso_SE_F1)
-      ttd_vec = abs(theta_vec - true_theta)
-      bias_vec = theta_vec - true_theta
+      ttd_vec = c(ttd_vec, abs(fso_F1 - true_theta))  # formerly: abs(theta_vec - true_theta)  # inefficient to re-calc for all in vector after each closed q administered
+      bias_vec = c(bias_vec, fso_F1 - true_theta)  # formerly: abs(theta_vec - true_theta)  # same change reason
       
       if (sum(is.na(closed_resps)) >= 1) {
         fso_ni = nextItem(itemBank = itembank_closed, model = 'GRM', theta = fso_F1, out=outvec)
@@ -322,9 +323,12 @@ plot_subplots_whole_sample = function(obj_list, color_mapping=color_map) {
   processed_data = list()
   df_indices = 2:5
   
-  y_axis_labels = c("Theta Est", "Theta Est SE", "Absolute Distance from Theta Est to True Theta", "Distance from Theta Est to True Theta")
-  x_axis_labels = c(" ", " ", "Closed Items Administered", " ")
-  metric_titles = c("Mean Theta Est", "Mean Theta Est SE", "Mean Theta Est Accuracy", "Mean Theta Est Bias")
+  y_axis_labels = c("Mean θ Estimate", 
+                    "Mean θ Estimate Standard Error", 
+                    "Mean Absolute Error |θ - true θ|",
+                    "Mean Bias (θ - true θ)")
+  x_axis_labels = rep("Closed Items Administered", 4)
+  metric_titles = c("Theta Estimation", "Estimation Precision", "Accuracy", "Bias")
   metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))
   y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
   
@@ -384,7 +388,7 @@ plot_subplots_whole_sample = function(obj_list, color_mapping=color_map) {
   p5 = ggplot(plot5_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
-    labs(title = "Test Information", x = expression(theta), y = "Information") +
+    labs(title = "Total Test Information", x = expression(theta), y = "Information") +
     scale_color_manual(values = color_mapping) +
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -403,7 +407,7 @@ plot_subplots_whole_sample = function(obj_list, color_mapping=color_map) {
   p6 = ggplot(plot6_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
-    labs(title = "Item Information from Open and Median Closed Items", x = expression(theta), y = "Information") +
+    labs(title = "Information from GPT Items vs. Median Closed Item", x = expression(theta), y = "Information") +
     scale_color_manual(values = color_mapping) +
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
