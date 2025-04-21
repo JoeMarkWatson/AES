@@ -437,6 +437,21 @@ color_map <- c(
   "Closed Only" = "black"  # also in SYNTH
 )
 
+## to focus on comparison models
+#color_map <- c(
+#  "Consistent Evidence Only" = "grey",  # also in SYNTH
+#  "Best Single Item" = "grey",  # also in SYNTH
+#  "Best All Items" = "grey",  # also in SYNTH
+#  "Best All Items (some NA)" = "grey",
+#  "Consistent Evidence Only (some NA)" = "grey",
+#  "Varying Evidence Only" = "grey",  # also in SYNTH
+#  "Varying Evidence Only (some NA)" = "grey",
+#  "Consistent Comparison Only" = "#7570b3",  # also in SYNTH
+#  "Varying Comparison Only" = "#15703c",             
+#  "Consistent Comparison Only (some NA)" = "#7fd3b5",
+#  "Closed Only" = "black"  # also in SYNTH
+#)
+
 
 # plot
 plot_2_subplots_whole_sample(obj_list)
