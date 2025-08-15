@@ -647,3 +647,103 @@ plot_subplots_theta_groups(obj_list2, metric = "bias", subplot_pstn = 1)  # for 
 #mean(bciai_sNA_objs_r[[3]]$X2)  # after 1 closed item
 #mean(closed_objs_r[[3]]$X20)  # after all closed items
 #mean(bciai_sNA_objs_r[[3]]$X20)  # after all closed items
+
+
+# Load the required libraries for analysis
+library(afex)
+library(emmeans)
+library(tidyverse)
+
+#################################################################
+## Step 1: Define the Reusable Analysis Function
+#################################################################
+# This is the same versatile function from before. It prepares the data,
+# runs the ANOVA, and performs the post-hoc tests.
+
+perform_anova_analysis <- function(obj_list, data_index, dv_name) {
+  
+  # --- Part A: Prepare the Data in a "Long" Format ---
+  all_models_data <- list()
+  
+  for (model_name in names(obj_list)) {
+    model_label <- obj_list[[model_name]]$label
+    metric_data <- obj_list[[model_name]]$data[[data_index]] 
+    
+    long_df <- metric_data %>%
+      mutate(Id = row_number()) %>%
+      pivot_longer(
+        cols = -Id,
+        names_to = "ItemStep",
+        values_to = dv_name 
+      ) %>%
+      mutate(
+        Model = model_label,
+        ItemNumber = as.numeric(str_replace(ItemStep, "X", "")) - 1
+      )
+    
+    all_models_data[[model_name]] <- long_df
+  }
+  
+  anova_data <- bind_rows(all_models_data) %>%
+    select(Id, Model, ItemNumber, all_of(dv_name)) 
+  
+  # Convert to factors and filter out ItemNumber 0 to avoid errors with NAs
+  anova_data$Model <- factor(anova_data$Model, levels = names(color_map))
+  anova_data$Id <- as.factor(anova_data$Id)
+  anova_data_filtered <- anova_data %>% filter(ItemNumber > 0)
+  
+  # --- Part B: Run the Repeated Measures ANOVA ---
+  cat(paste("\n--- Running ANOVA for:", dv_name, "---\n"))
+  
+  aov_results <- aov_ez(
+    data = anova_data_filtered,
+    dv = dv_name,
+    id = "Id",
+    within = c("Model", "ItemNumber")
+  )
+  print(aov_results)
+  
+  # --- Part C: Run Post-Hoc Tests vs. Baseline ---
+  cat(paste("\n--- Running Post-Hoc Comparisons for:", dv_name, "---\n"))
+  
+  posthoc_results <- emmeans(aov_results, ~ Model, model = "multivariate") %>%
+    pairs(ref = "Closed Only", adjust = "bonferroni")
+  
+  return(posthoc_results)
+}
+
+
+#################################################################
+## Step 2: Run the Analysis for Each Metric
+#################################################################
+# Call the function for Estimation Precision
+posthoc_results_precision <- perform_anova_analysis(
+  obj_list = obj_list,
+  data_index = 3, # tse_df is the 3rd element
+  dv_name = "TSE"
+)
+
+# Call the function for Accuracy
+posthoc_results_accuracy <- perform_anova_analysis(
+  obj_list = obj_list,
+  data_index = 4, # ttd_df is the 4th element
+  dv_name = "Accuracy"
+)
+
+
+#################################################################
+## Step 3: View Results and Save to CSV
+#################################################################
+
+# --- Estimation Precision ---
+cat("\n\n\n--- FINAL RESULTS: ESTIMATION PRECISION ---\n")
+print(posthoc_results_precision)
+precision_df <- as.data.frame(posthoc_results_precision)
+write.csv(precision_df, "synth_posthoc_precision_results.csv", row.names = FALSE)
+
+# --- Accuracy ---
+cat("\n\n\n--- FINAL RESULTS: ACCURACY ---\n")
+print(posthoc_results_accuracy)
+accuracy_df <- as.data.frame(posthoc_results_accuracy)
+write.csv(accuracy_df, "synth_posthoc_accuracy_results.csv", row.names = FALSE)
+

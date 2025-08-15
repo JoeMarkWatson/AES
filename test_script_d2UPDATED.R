@@ -437,19 +437,21 @@ color_map <- c(
   "Closed Only" = "black"  # also in SYNTH
 )
 
-## to focus on comparison models
+## to focus on certain models
 #color_map <- c(
-#  "Consistent Evidence Only" = "grey",  # also in SYNTH
-#  "Best Single Item" = "grey",  # also in SYNTH
-#  "Best All Items" = "grey",  # also in SYNTH
+#  "Consistent Comparison Only" = "grey",
+#  "Varying Comparison Only" = "grey",             
+#  "Consistent Comparison Only (some NA)" = "grey",
+#  "Best Single Item" = "grey",
+#  "Best All Items" = "grey",
 #  "Best All Items (some NA)" = "grey",
-#  "Consistent Evidence Only (some NA)" = "grey",
-#  "Varying Evidence Only" = "grey",  # also in SYNTH
-#  "Varying Evidence Only (some NA)" = "grey",
-#  "Consistent Comparison Only" = "#7570b3",  # also in SYNTH
-#  "Varying Comparison Only" = "#15703c",             
-#  "Consistent Comparison Only (some NA)" = "#7fd3b5",
-#  "Closed Only" = "black"  # also in SYNTH
+  
+#  "Varying Evidence Only" = "grey",
+#  "Consistent Evidence Only" = "grey",
+
+#  "Varying Evidence Only (some NA)" = "#7570b3",
+#  "Consistent Evidence Only (some NA)" = "#15703c",
+#  "Closed Only" = "black"
 #)
 
 
@@ -462,3 +464,101 @@ plot_2_subplots_whole_sample(obj_list)
 #mean(bciai_sNA_objs_r[[3]]$X2)
 #mean(closed_objs_r[[3]]$X20)
 #mean(bciai_sNA_objs_r[[3]]$X20)
+
+
+#################################################################
+# LOOK FOR SIGNIF DIFFERENCES BETWEEN LINES
+library(afex)
+library(emmeans)
+library(tidyverse)
+
+#################################################################
+## Step 1: Create a Function for ANOVA Analysis
+#################################################################
+
+perform_anova_analysis <- function(obj_list, data_index, dv_name) {
+  
+  # --- Part A: Prepare the Data in a "Long" Format ---
+  all_models_data <- list()
+  
+  for (model_name in names(obj_list)) {
+    model_label <- obj_list[[model_name]]$label
+    
+    # Use the 'data_index' argument to get the correct data frame (e.g., TSE or Theta)
+    metric_data <- obj_list[[model_name]]$data[[data_index]] 
+    
+    long_df <- metric_data %>%
+      mutate(Id = row_number()) %>%
+      pivot_longer(
+        cols = -Id,
+        names_to = "ItemStep",
+        # Use the 'dv_name' argument to name the dependent variable column
+        values_to = dv_name 
+      ) %>%
+      mutate(
+        Model = model_label,
+        ItemNumber = as.numeric(str_replace(ItemStep, "X", "")) - 1
+      )
+    
+    all_models_data[[model_name]] <- long_df
+  }
+  
+  anova_data <- bind_rows(all_models_data) %>%
+    # Use the dynamic variable name from 'dv_name' in the select helper
+    select(Id, Model, ItemNumber, all_of(dv_name)) 
+  
+  # Convert to factors and filter out ItemNumber 0
+  anova_data$Model <- factor(anova_data$Model, levels = names(color_map))
+  anova_data$Id <- as.factor(anova_data$Id)
+  anova_data_filtered <- anova_data %>% filter(ItemNumber > 0)
+  
+  # --- Part B: Run the Repeated Measures ANOVA ---
+  cat(paste("\n--- Running ANOVA for:", dv_name, "---\n"))
+  
+  aov_results <- aov_ez(
+    data = anova_data_filtered,
+    dv = dv_name, # Use the dynamic DV name here
+    id = "Id",
+    within = c("Model", "ItemNumber")
+  )
+  print(aov_results)
+  
+  # --- Part C: Run Post-Hoc Tests ---
+  cat(paste("\n--- Running Post-Hoc Comparisons for:", dv_name, "---\n"))
+  
+  posthoc_results <- emmeans(aov_results, ~ Model, model = "multivariate") %>%
+    pairs(ref = "Closed Only", adjust = "bonferroni")
+  
+  # Return the final results table
+  #return(posthoc_results)
+}
+
+
+#################################################################
+## Step 2: Run the Analysis for Each Metric
+#################################################################
+# Call the function twice with different parameters.
+
+# 1. Analyse Estimation Precision (TSE)
+# - Get data from the 3rd element of the list (`data[[3]]`).
+posthoc_results_precision <- perform_anova_analysis(
+  obj_list = obj_list,
+  data_index = 3,
+  dv_name = "TSE"
+)
+
+
+
+
+#################################################################
+## Step 3: View Results
+#################################################################
+cat("\n\n\n--- FINAL RESULTS: ESTIMATION PRECISION ---\n")
+print(posthoc_results_precision)
+
+# save
+precision_results_df <- as.data.frame(posthoc_results_precision)
+write.csv(precision_results_df, "posthoc_precision_results.csv", row.names = FALSE)
+
+# we can't do an ANOVA for correlation: we don't have for each person, as correlation is for whole sample
+
