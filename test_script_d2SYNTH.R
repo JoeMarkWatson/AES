@@ -216,9 +216,8 @@ load_n_cat_sim = function(closed_only=F, kept_items_df, fit_object) {
     # load data
     itk_df = data_all[c(closed_items, "ID", "true_theta")]
     
-    # get median x item iteminfo
-    model_items_info = testinfo(x = fit_object, Theta = theta_range, individual = TRUE)  # Get item info matrix: rows = theta, columns = items
-    selected_item_s_info = apply(model_items_info, 1, median)  # For each theta, get the median info value across items
+    # Calculate the AVERAGE information per closed item
+    selected_item_s_info = model_test_info / length(closed_items)
     
   } else {
     # load data
@@ -328,7 +327,12 @@ plot_subplots_whole_sample = function(obj_list, color_mapping=color_map) {
                     "Mean Absolute Error |θ - true θ|",
                     "Mean Bias (θ - true θ)")
   x_axis_labels = rep("Closed Items Administered", 4)
-  metric_titles = c("Theta Estimation", "Estimation Precision", "Accuracy", "Bias")
+  metric_titles = c("A. Theta Estimation", 
+                    "B. Estimation Precision", 
+                    "C. Accuracy", 
+                    "D. Bias",
+                    "E. Total Test Information",
+                    "F. Information From LLM Items vs Average Closed Item")
   metric_labels = setNames(metric_titles, paste0("Metric ", df_indices))
   y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
   
@@ -388,7 +392,7 @@ plot_subplots_whole_sample = function(obj_list, color_mapping=color_map) {
   p5 = ggplot(plot5_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
-    labs(title = "Total Test Information", x = expression(theta), y = "Information") +
+    labs(title = metric_titles[5], x = expression(theta), y = "Information") +
     scale_color_manual(values = color_mapping) +
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -407,7 +411,7 @@ plot_subplots_whole_sample = function(obj_list, color_mapping=color_map) {
   p6 = ggplot(plot6_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
-    labs(title = "Information from GPT Items vs. Median Closed Item", x = expression(theta), y = "Information") +
+    labs(title = metric_titles[6], x = expression(theta), y = "Information") +
     scale_color_manual(values = color_mapping) +
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -436,7 +440,7 @@ plot_subplots_theta_groups = function(obj_list, metric = "ttd", subplot_pstn = 2
   }
   x_axis_labels = c(" ", " ", "Closed Items Administered", " ")
   
-  chunk_titles = c("Below -1 SD", "Between -1 SD and 0 SD", "Between 0 SD and 1 SD", "Above 1 SD")
+  chunk_titles = c("A. Below -1 SD", "B. Between -1 SD and 0 SD", "C. Between 0 SD and 1 SD", "D. Above 1 SD")
   
   plot_list = list()
   
@@ -739,11 +743,74 @@ posthoc_results_accuracy <- perform_anova_analysis(
 cat("\n\n\n--- FINAL RESULTS: ESTIMATION PRECISION ---\n")
 print(posthoc_results_precision)
 precision_df <- as.data.frame(posthoc_results_precision)
-write.csv(precision_df, "synth_posthoc_precision_results.csv", row.names = FALSE)
+#write.csv(precision_df, "synth_posthoc_precision_results.csv", row.names = FALSE)
 
 # --- Accuracy ---
 cat("\n\n\n--- FINAL RESULTS: ACCURACY ---\n")
 print(posthoc_results_accuracy)
 accuracy_df <- as.data.frame(posthoc_results_accuracy)
-write.csv(accuracy_df, "synth_posthoc_accuracy_results.csv", row.names = FALSE)
+#write.csv(accuracy_df, "synth_posthoc_accuracy_results.csv", row.names = FALSE)
+
+
+#################################################################
+## Calculate Information Equivalence for ALL Models
+#################################################################
+
+# 1. INITIALIZE A LIST TO STORE RESULTS
+# We'll put the results for each model in this list as we loop through them.
+results_list <- list()
+
+# 2. EXTRACT THE BASELINE INFORMATION
+# We only need to get the average closed item info once.
+avg_closed_info <- obj_list$closed$data[[7]]
+theta_range <- seq(-4, 4, 0.1)
+summary_range <- theta_range >= -2 & theta_range <= 2
+
+# 3. LOOP THROUGH EACH MODEL IN obj_list
+# This loop calculates the equivalence ratio for every model except the baseline itself.
+for (model_name in names(obj_list)) {
+  # Skip the 'closed' model since we can't compare it to itself
+  if (model_name == "closed") {
+    next
+  }
+  
+  # Extract the info for the current model in the loop
+  llm_info <- obj_list[[model_name]]$data[[7]]
+  model_label <- obj_list[[model_name]]$label
+  
+  # Calculate the equivalence ratio
+  equivalence_ratio <- llm_info / (avg_closed_info + 1e-9)
+  
+  # Calculate the average equivalence within the specified theta range
+  avg_equivalence <- mean(equivalence_ratio[summary_range])
+  
+  # Store the results in a temporary data frame
+  results_list[[model_name]] <- data.frame(
+    Model = model_label,
+    AvgEquivalence = avg_equivalence
+  )
+}
+
+# 4. CREATE AND DISPLAY THE SUMMARY TABLE
+# Combine the list of results into a single, clean data frame.
+summary_table <- bind_rows(results_list)
+
+# Sort the table from best to worst
+summary_table <- summary_table %>%
+  arrange(desc(AvgEquivalence))
+
+cat("\n--- Information Equivalence Summary Table ---\n")
+print(summary_table)
+write.csv(summary_table, "synth_infoEquivSummary.csv", row.names = FALSE)
+
+# 5. IDENTIFY THE BEST MODEL AND GENERATE THE SENTENCE
+# The best model is now the first row in our sorted table.
+best_model <- summary_table[1, ]
+
+cat("\n--- Top Performing Model ---\n")
+cat(sprintf(
+  "Across the theta range of [-2, 2], the top-performing '%s' item set provides information equivalent to approximately %.1f average closed items.\n",
+  best_model$Model,
+  best_model$AvgEquivalence
+))
 

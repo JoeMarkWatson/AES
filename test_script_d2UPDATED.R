@@ -122,7 +122,7 @@ cat_sim = function(fit_obj, data_all) {
     if (all(is.na(theta_df[, i]))) {
       NA
     } else {
-      cor(theta_df[, i], suicide_ideation_all, use = "complete.obs")
+      cor(theta_df[, i], suicide_ideation_all, use = "complete.obs")^2
     }
   })
   
@@ -154,9 +154,8 @@ load_n_cat_sim = function(closed_only = FALSE, kept_items_df, fit_object) {
     # Load data (now includes suicide_ideation)
     itk_df = data_all[c(closed_items, "ID", "fitcF1", "suicide_ideation")]  
     
-    # Get median item information for closed items
-    model_items_info = testinfo(x = fit_object, Theta = theta_range, individual = TRUE)
-    selected_item_s_info = apply(model_items_info, 1, median)  # Median info across items
+    # Calculate the AVERAGE information per closed item
+    selected_item_s_info = model_test_info / length(closed_items)
     
   } else {
     # Load data (includes GPT items + suicide_ideation)
@@ -203,15 +202,17 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
     "Mean θ Estimate", 
     "Mean θ Estimate Standard Error", 
     "Mean Absolute Divergence from Closed-Only θ",
-    "Correlation with Suicidality"  # New label
+    "Variance Explained in Suicidality (R-squared)" # New label
   )
   x_axis_labels = rep("Closed Items Administered", 4)
   metric_titles = c(
-    "Theta Estimation", 
-    "Estimation Precision", 
-    "Divergence from Closed-Only Estimates",
-    "Convergent Validity"  # New title
-  )
+    "A. Theta Estimation", 
+    "B. Estimation Precision", 
+    "C. Divergence from Closed-Only Estimates",
+    "D. Convergent Validity",
+    "E. Total Test Information",
+    "F. Information From LLM Items vs Average Closed Item" 
+)
   y_labels = setNames(y_axis_labels, paste0("Metric ", df_indices))
   
   plot_list = list()
@@ -283,7 +284,7 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
   p_tinfo = ggplot(plot_tinfo_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
-    labs(title = "Total Test Information", x = expression(theta), y = "Information") +
+    labs(title = metric_titles[5], x = expression(theta), y = "Information") +
     scale_color_manual(values = color_mapping) +
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -302,7 +303,7 @@ plot_2_subplots_whole_sample = function(obj_list, color_mapping = color_map) {
   p_iinfo = ggplot(plot_iinfo_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) +
     theme_minimal() +
-    labs(title = "Information From GPT Items vs. Median Closed Item", x = expression(theta), y = "Information") +
+    labs(title = metric_titles[6], x = expression(theta), y = "Information") +
     scale_color_manual(values = color_mapping) +
     scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
@@ -558,7 +559,71 @@ print(posthoc_results_precision)
 
 # save
 precision_results_df <- as.data.frame(posthoc_results_precision)
-write.csv(precision_results_df, "posthoc_precision_results.csv", row.names = FALSE)
+#write.csv(precision_results_df, "posthoc_precision_results.csv", row.names = FALSE)
 
 # we can't do an ANOVA for correlation: we don't have for each person, as correlation is for whole sample
 
+
+#################################################################
+## Calculate Information Equivalence for ALL Models
+#################################################################
+
+# 1. INITIALIZE A LIST TO STORE RESULTS
+results_list <- list()
+
+# 2. EXTRACT THE BASELINE INFORMATION AND DEFINE PARAMETERS
+# This only needs to be done once.
+avg_closed_info <- obj_list$closed$data[[7]]
+theta_range <- seq(-4, 4, 0.1)
+summary_range <- theta_range >= -2 & theta_range <= 2
+
+# 3. LOOP THROUGH EACH MODEL IN obj_list
+# This calculates the equivalence ratio for every model except the baseline.
+for (model_name in names(obj_list)) {
+  # Skip the 'closed' model itself
+  if (model_name == "closed") {
+    next
+  }
+  
+  # Extract info for the current model
+  llm_info <- obj_list[[model_name]]$data[[7]]
+  model_label <- obj_list[[model_name]]$label
+  
+  # Calculate the equivalence ratio
+  equivalence_ratio <- llm_info / (avg_closed_info + 1e-9)
+  
+  # Calculate the average equivalence within the specified theta range
+  avg_equivalence <- mean(equivalence_ratio[summary_range])
+  
+  # Store the results
+  results_list[[model_name]] <- data.frame(
+    Model = model_label,
+    AvgEquivalence = avg_equivalence
+  )
+}
+
+# 4. CREATE, DISPLAY, AND SAVE THE SUMMARY TABLE
+# Combine the results into a single data frame
+summary_table <- bind_rows(results_list)
+
+# Sort the table from best to worst
+summary_table <- summary_table %>%
+  arrange(desc(AvgEquivalence))
+
+cat("\n--- Information Equivalence Summary Table ---\n")
+print(summary_table)
+
+# Save the table to a CSV file
+#write.csv(summary_table, "real_data_info_equivalence.csv", row.names = FALSE)
+
+
+# 5. IDENTIFY THE BEST MODEL AND GENERATE THE SENTENCE
+# The best model is the first row in our sorted table.
+best_model <- summary_table[1, ]
+
+cat("\n--- Top Performing Model ---\n")
+cat(sprintf(
+  "Across the theta range of [-2, 2], the top-performing '%s' item set provides information equivalent to approximately %.1f average closed items.\n",
+  best_model$Model,
+  best_model$AvgEquivalence
+))
