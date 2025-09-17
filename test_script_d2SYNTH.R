@@ -497,6 +497,57 @@ plot_subplots_theta_groups = function(obj_list, metric = "ttd", subplot_pstn = 2
 }
 
 
+plot_divergence_from_closed <- function(obj_list, color_mapping = color_map) {
+  
+  # Combine divergence data from all models into a single dataframe
+  plot_data <- bind_rows(lapply(names(obj_list), function(cat_name) {
+    obj <- obj_list[[cat_name]]
+    # The divergence_df is the 8th element we will add
+    df <- obj$data[[8]] 
+    
+    if (!is.null(df)) {
+      df_means <- get_mean_values(df)
+      df_means$CAT <- obj$label # Add model label
+      return(df_means)
+    }
+    return(NULL)
+  }))
+  
+  # Add the item step number (0 to 19)
+  plot_data$item <- 0:19
+  
+  # Ensure factor level ordering to match the legend
+  plot_data$CAT <- factor(plot_data$CAT, levels = names(color_mapping))
+  
+  # Create the plot
+  p <- ggplot(plot_data, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
+    geom_point() +
+    geom_line(size = 1) +
+    scale_color_manual(values = color_mapping) +
+    scale_linetype_manual(values = setNames(
+      ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"),
+      names(color_mapping)
+    )) +
+    theme_minimal() +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, size = 1),
+      legend.position = "right",
+      axis.title.y = element_text(size = 12),
+      plot.title = element_text(hjust = 0.5, face = "bold")
+    ) +
+    labs(
+      title = "Divergence from Closed-Only Estimates",
+      y = expression(paste("Mean Absolute Divergence |", hat(theta), " - ", hat(theta)["closed-final"], "|")),
+      x = "Closed Items Administered",
+      color = "Approach",
+      linetype = "Approach"
+    )
+  
+  # Print the plot
+  print(p)
+}
+
+
 reverse_code <- function(x, max_score = 5) {
   return(max_score + 1 - x)  # Adjust max_score based on your scale
 }
@@ -609,6 +660,26 @@ color_map <- c(
 )
 
 
+# --- Calculate Divergence from Closed-Only Final Thetas ---
+
+# Extract the final theta estimates from the "Closed Only" simulation results
+# The theta_df is the 2nd list element, and we need the last column.
+closed_only_final_thetas <- obj_list$closed$data[[2]][, ncol(obj_list$closed$data[[2]])]
+
+# Loop through each model in obj_list to calculate its divergence
+for (model_name in names(obj_list)) {
+  # Get the theta estimates dataframe (at each step) for the current model
+  model_theta_df <- obj_list[[model_name]]$data[[2]]
+  
+  # Calculate the absolute difference from the final closed-only thetas
+  # sweep() subtracts the vector from each row of the dataframe
+  divergence_df <- abs(sweep(model_theta_df, 1, closed_only_final_thetas, FUN = "-"))
+  
+  # Store this new dataframe in the list at index 8.
+  obj_list[[model_name]]$data[[8]] <- divergence_df
+}
+
+
 #plot_lines(obj_list, which_dfs = 2)  # mean theta hat  # warning message is OK - it is for missing 0th item value for closed only
 #plot_lines(obj_list, which_dfs = 3)  # theta hat SE
 #plot_lines(obj_list, which_dfs = 4)  # absolute distance between theta hat and true theta
@@ -642,6 +713,8 @@ obj_list2 <- list(
 plot_subplots_theta_groups(obj_list2, metric = "ttd", subplot_pstn = 2)  # for theta est accuracy
 plot_subplots_theta_groups(obj_list2, metric = "bias", subplot_pstn = 1)  # for theta est bias
 
+# --- Plot the new Divergence Figure ---
+plot_divergence_from_closed(obj_list)
 
 # # #
 
@@ -652,6 +725,8 @@ plot_subplots_theta_groups(obj_list2, metric = "bias", subplot_pstn = 1)  # for 
 #mean(closed_objs_r[[3]]$X20)  # after all closed items
 #mean(bciai_sNA_objs_r[[3]]$X20)  # after all closed items
 
+
+# STEPS FOR CARRYING OUT ANOVA
 
 # Load the required libraries for analysis
 library(afex)
