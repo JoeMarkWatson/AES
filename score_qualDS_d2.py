@@ -12,6 +12,9 @@ OUTPUT_CSV_PATH = '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan p
 MODEL_NAME = "deepseek-chat"
 SAVE_INTERVAL = 2  # Save after every 2 rows
 
+# NOTE: New variable for the placeholder in your prompts.
+COUNTRY_OF_ORIGIN = "Chinese"
+
 PROMPT_FILENAMES = {
     'a': 'score_qual_a_d2.txt',
     'b': 'score_qual_b_d2.txt',
@@ -71,11 +74,14 @@ def process_row(row, gpt_query, prompt_templates, client):
             continue
 
         print(f"  - Scoring {col_prefix}...")
+
+        # 'country_of_origin' key is added here, to populate the {country_of_origin} placeholder in prompt files.
         prompt_data = {
             'writing_type': 'an essay' if col_prefix == 'E' else 'a sentence completion',
             'writing_prompt': prompt_full_text[0],
             'writing_prompt_short': prompt_full_text[0].split('"')[1],
-            'humans_response': row[col_prefix]
+            'humans_response': row[col_prefix],
+            'country_of_origin': COUNTRY_OF_ORIGIN
         }
 
         for prompt_key, template in prompt_templates.items():
@@ -110,7 +116,7 @@ def main():
         print(f"FATAL: Input data file not found at {INPUT_CSV_PATH}. Exiting.")
         exit()
 
-    # NOTE: Resume capability logic
+    # Resume capability logic
     processed_ids = set()
     results_list = []
     if os.path.exists(OUTPUT_CSV_PATH):
@@ -147,8 +153,7 @@ def main():
         row_scores = process_row(row, gpt_query, prompt_templates, client)
         results_list.append(row_scores)
 
-        # NOTE: Incremental saving logic
-        # We check the number of *newly processed* rows to trigger saving
+        # Incremental saving logic
         newly_processed_count = len(results_list) - len(processed_ids)
         if newly_processed_count > 0 and newly_processed_count % SAVE_INTERVAL == 0:
             print(f"\n--- Saving progress ({len(results_list)} total rows)... ---")
