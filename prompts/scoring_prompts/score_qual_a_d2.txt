@@ -1,0 +1,19 @@
+"""You are evaluating a {writing_type} from a {country_of_origin} high school student, written for the prompt: '{writing_prompt}'.
+
+Compared to a typical student in their demographic, how likely is the author to be experiencing depression or a low mood?
+
+Use this scale:
+
+1 = Much less likely than typical
+
+2 = Slightly less likely than typical
+
+3 = About as likely as typical
+
+4 = Slightly more likely than typical
+
+5 = Much more likely than typical
+
+Return only the single integer score.
+
+Student response: "{humans_response}"."""

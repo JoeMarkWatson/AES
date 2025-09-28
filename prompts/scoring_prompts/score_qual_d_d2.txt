@@ -1,0 +1,15 @@
+"""Read the student's {writing_type} below. Choose the one option from the list that best describes the emotional content of the text.
+
+1 = The text displays a clearly positive, resilient, or optimistic outlook.
+
+2 = The text is emotionally balanced or reflects typical, everyday challenges without significant distress.
+
+3 = The text contains noticeable elements of sadness or melancholy, typical for a student under stress.
+
+4 = The text is dominated by a tone of emotional distress, negativity, or significant worry.
+
+5 = The text contains explicit and pervasive themes of hopelessness, despair, or worthlessness.
+
+Return only the number of the option you choose (1, 2, 3, 4, or 5).
+
+The student wrote this in response to '{writing_prompt}': "{humans_response}"."""

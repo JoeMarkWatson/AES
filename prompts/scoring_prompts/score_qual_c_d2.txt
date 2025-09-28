@@ -1,0 +1,19 @@
+"""You are analyzing a {writing_type} by a {country_of_origin} high school student, written for '{writing_prompt}'.
+
+Indicate your level of agreement with the following statement based only on the provided text: "This student's writing suggests they are experiencing depression."
+
+Use the scale below:
+
+1 = Strongly Disagree
+
+2 = Disagree
+
+3 = Neutral / Cannot Determine
+
+4 = Agree
+
+5 = Strongly Agree
+
+Return only the single integer that corresponds to your choice.
+
+Student response: "{humans_response}"."""

@@ -1,0 +1,19 @@
+"""You are an AI assistant performing a preliminary screening for emotional distress. Analyze the following {writing_type} from a {country_of_origin} high school student (prompt: '{writing_prompt}').
+
+Rate the level of concern warranted by the student's writing regarding potential depression or severe low mood.
+
+Use the following scale:
+
+1 = Very low concern
+
+2 = Low concern
+
+3 = Moderate concern
+
+4 = High concern
+
+5 = Very high concern
+
+Respond with a single integer (1-5) and nothing else.
+
+Student response: "{humans_response}"."""
