@@ -1,6 +1,9 @@
+# score_data_in_chunks.py
+
 import os
 import time
 import pandas as pd
+import numpy as np
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
@@ -10,24 +13,23 @@ QUAL_DATA_PATH = "output/synth_qual_resps_d2.csv"
 TRAIN_RESP_PATH = 'output/synth_resps_train_d2UPDATED.csv'
 TEST_RESP_PATH = 'output/synth_resps_test_d2UPDATED.csv'
 
-OUTPUT_CSV_PATH = '/Users/jw/Desktop/dt/jbs_work/Psychometric_position/ivan proj/DS_sentsOutput_4prompts_incrementalSYNTH_d2.csv'
+OUTPUT_CHUNK_DIR = '/Users/jw/Desktop/dt/jbs_work/Psychometric_position/ivan proj/synth_results_chunks/'
 PROMPT_DIR = './prompts/scoring_prompts/'
 MODEL_NAME = "deepseek-chat"
 
-# NOTE: SAVE_INTERVAL is now based on the number of fully processed ROWS (students).
-SAVE_INTERVAL = 2  # Save after every 2 complete rows
-MAX_WORKERS = 20
+NUM_CHUNKS = 100
+MAX_WORKERS = 40
 COUNTRY_OF_ORIGIN = "American"
 
 PROMPT_FILENAMES = {
-    'a': 'score_qual_a_d2.txt',
-    'b': 'score_qual_b_d2.txt',
-    'c': 'score_qual_c_d2.txt',
-    'd': 'score_qual_d_d2.txt'
+    'a': 'score_qual_a_d2.txt', 'b': 'score_qual_b_d2.txt',
+    'c': 'score_qual_c_d2.txt', 'd': 'score_qual_d_d2.txt'
 }
 
 
-# --- CORE FUNCTIONS (get_llm_score, load_prompts remain the same) ---
+# --- CORE FUNCTIONS ---
+
+# NOTE: This function has been updated with detailed error logging from your working script.
 def get_llm_score(client, prompt_template, prompt_data):
     """Calls the LLM API and returns a single integer score."""
     try:
@@ -43,12 +45,11 @@ def get_llm_score(client, prompt_template, prompt_data):
         return int(content)
     except ValueError:
         response_text = content if 'content' in locals() else 'N/A'
-        print(
-            f"  - WARNING: Could not convert LLM response ('{response_text}') to int for ID {prompt_data.get('id', 'Unknown')}, Column {prompt_data.get('col_prefix', 'Unknown')}. Storing None.")
+        print(f"  - WARNING: Could not convert LLM response ('{response_text}') to int. Storing None.", flush=True)
         return None
     except Exception as e:
-        print(
-            f"  - ERROR: API call failed for ID {prompt_data.get('id', 'Unknown')}, Column {prompt_data.get('col_prefix', 'Unknown')}: {e}. Storing None.")
+        # This will now print the actual error message from the API.
+        print(f"  - ERROR: API call failed: {e}. Storing None.", flush=True)
         time.sleep(1)
         return None
 
@@ -56,28 +57,19 @@ def get_llm_score(client, prompt_template, prompt_data):
 def load_prompts(prompt_dir, filenames):
     """Loads prompt templates from text files into a dictionary."""
     templates = {}
-    print("--- Loading Prompts ---")
     for key, filename in filenames.items():
-        try:
-            path = os.path.join(prompt_dir, filename)
-            with open(path, 'r', encoding='utf-8') as f:
-                templates[key] = f.read()
-            print(f"Successfully loaded prompt '{filename}'")
-        except FileNotFoundError:
-            print(f"FATAL: Prompt file not found at {path}. Exiting.")
-            exit()
+        path = os.path.join(prompt_dir, filename)
+        with open(path, 'r', encoding='utf-8') as f:
+            templates[key] = f.read()
     return templates
 
 
 # --- MAIN EXECUTION BLOCK ---
 
 def main():
-    """Main function to run the synthetic data scoring pipeline in parallel."""
+    """Main function to run the data scoring pipeline in chunks."""
     try:
-        client = OpenAI(
-            api_key=os.environ.get("DEEPSEEK_API_KEY"),
-            base_url="https://api.deepseek.com/v1"
-        )
+        client = OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com/v3.1_terminus_expires_on_20251015")  # not using https://api.deepseek.com/v1. Instead, using endpoint for v3.1 to promote consistency with real data scoring.
     except TypeError:
         print("ERROR: DEEPSEEK_API_KEY environment variable not set. Exiting.")
         exit()
@@ -85,35 +77,19 @@ def main():
     prompt_templates = load_prompts(PROMPT_DIR, PROMPT_FILENAMES)
 
     print("\n--- Loading and Preparing Synthetic Data ---")
-    try:
-        synth_qual_data = pd.read_csv(QUAL_DATA_PATH)
-        synth_resps_train = pd.read_csv(TRAIN_RESP_PATH)
-        synth_resps_test = pd.read_csv(TEST_RESP_PATH)
-    except FileNotFoundError as e:
-        print(f"FATAL: Input data file not found: {e}. Exiting.")
-        exit()
-
+    synth_qual_data = pd.read_csv(QUAL_DATA_PATH)
+    synth_resps_train = pd.read_csv(TRAIN_RESP_PATH)
+    synth_resps_test = pd.read_csv(TEST_RESP_PATH)
     synth_resps = pd.concat([synth_resps_train, synth_resps_test], ignore_index=True)
     all_data = pd.merge(synth_resps, synth_qual_data, on='ID')
     if 'trans_text' in all_data.columns:
         all_data.rename(columns={'trans_text': 'E'}, inplace=True)
     print(f"Successfully loaded and merged a total of {len(all_data)} data rows.")
 
-    processed_ids = set()
-    results_map = {}
-    if os.path.exists(OUTPUT_CSV_PATH):
-        print(f"\n--- Resuming from existing output file: {OUTPUT_CSV_PATH} ---")
-        existing_df = pd.read_csv(OUTPUT_CSV_PATH)
-        processed_ids = set(existing_df['ID'])
-        results_map = {row['ID']: row for row in existing_df.to_dict('records')}
-        print(f"Found {len(processed_ids)} previously processed IDs.")
+    os.makedirs(OUTPUT_CHUNK_DIR, exist_ok=True)
 
-    unprocessed_data = all_data[~all_data['ID'].isin(processed_ids)].copy()
-    if len(unprocessed_data) == 0:
-        print("\nAll IDs have already been processed. Nothing to do. Exiting.")
-        return
-
-    print(f"\n--- Preparing to score {len(unprocessed_data)} new rows with up to {MAX_WORKERS} parallel workers ---")
+    data_chunks = np.array_split(all_data, NUM_CHUNKS)
+    print(f"\nData has been split into {len(data_chunks)} chunks of approximately {len(data_chunks[0])} rows each.")
 
     ss = 'the sentence completion prompt: "'
     gpt_query = {
@@ -126,61 +102,58 @@ def main():
         ], start=1)}
     }
 
-    # NOTE: New dictionaries to track row-by-row progress
-    row_task_counts = defaultdict(int)
-    row_completion_counts = defaultdict(int)
-    completed_rows_count = 0
+    for i, chunk_df in enumerate(data_chunks):
+        chunk_num = i + 1
+        chunk_output_path = os.path.join(OUTPUT_CHUNK_DIR, f'chunk_{chunk_num}_results.csv')
 
-    tasks = []
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        for index, row in unprocessed_data.iterrows():
-            student_id = row['ID']
-            if student_id not in results_map:
+        print(f"\n{'=' * 50}\n--- Starting processing for Chunk {chunk_num}/{NUM_CHUNKS} ---\n{'=' * 50}")
+
+        if os.path.exists(chunk_output_path):
+            print(f"Chunk {chunk_num} already processed. Skipping.")
+            continue
+
+        results_map = {}
+        future_to_metadata = {}
+
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            for index, row in chunk_df.iterrows():
+                student_id = row['ID']
                 results_map[student_id] = {'ID': student_id}
+                for col_prefix, prompt_full_text in gpt_query.items():
+                    if col_prefix in row and pd.notna(row[col_prefix]):
+                        for prompt_key, template in prompt_templates.items():
+                            prompt_data = {
+                                'id': student_id, 'col_prefix': col_prefix,
+                                'writing_type': 'an essay' if col_prefix == 'E' else 'a sentence completion',
+                                'writing_prompt': prompt_full_text[0],
+                                'writing_prompt_short': prompt_full_text[0].split('"')[1],
+                                'humans_response': row[col_prefix], 'country_of_origin': COUNTRY_OF_ORIGIN
+                            }
+                            future = executor.submit(get_llm_score, client, template, prompt_data)
+                            future_to_metadata[future] = (student_id, col_prefix, prompt_key)
 
-            for col_prefix, prompt_full_text in gpt_query.items():
-                if col_prefix in row and pd.notna(row[col_prefix]):
-                    for prompt_key, template in prompt_templates.items():
-                        row_task_counts[student_id] += 1  # Count tasks per ID
-                        prompt_data = {
-                            'id': student_id, 'col_prefix': col_prefix,
-                            'writing_type': 'an essay' if col_prefix == 'E' else 'a sentence completion',
-                            'writing_prompt': prompt_full_text[0],
-                            'writing_prompt_short': prompt_full_text[0].split('"')[1],
-                            'humans_response': row[col_prefix], 'country_of_origin': COUNTRY_OF_ORIGIN
-                        }
-                        future = executor.submit(get_llm_score, client, template, prompt_data)
-                        tasks.append((future, student_id, col_prefix, prompt_key))
+            total_tasks = len(future_to_metadata)
+            print(f"Executing {total_tasks} API calls for this chunk...")
+            processed_calls = 0
 
-        print(f"\n--- Executing {len(tasks)} total API calls in parallel. This may take a while... ---")
+            for future in as_completed(future_to_metadata):
+                student_id, col_prefix, prompt_key = future_to_metadata[future]
+                score = future.result()
+                column_name = f"{col_prefix}{prompt_key}"
+                results_map[student_id][column_name] = score
+                processed_calls += 1
 
-        for future, student_id, col_prefix, prompt_key in as_completed(tasks):
-            score = future.result()
-            column_name = f"{col_prefix}{prompt_key}"
-            results_map[student_id][column_name] = score
+                if processed_calls % 100 == 0:
+                    print(f"  ... {processed_calls}/{total_tasks} calls complete for this chunk.", flush=True)
 
-            # NOTE: New logic to provide per-row feedback
-            row_completion_counts[student_id] += 1
-            if row_completion_counts[student_id] == row_task_counts[student_id]:
-                completed_rows_count += 1
-                print(
-                    f"--- ✅ Row complete for ID: {student_id} ({completed_rows_count}/{len(unprocessed_data)} new rows complete) ---")
+        # Save the completed chunk
+        chunk_results_df = pd.DataFrame(list(results_map.values()))
+        chunk_df_base = chunk_df.drop(columns=[col for col in chunk_results_df.columns if col != 'ID'], errors='ignore')
+        output_chunk_df = pd.merge(chunk_df_base, chunk_results_df, on='ID', how='left')
+        output_chunk_df.to_csv(chunk_output_path, index=False)
+        print(f"--- ✅ Chunk {chunk_num} complete! Results saved to {chunk_output_path} ---")
 
-                if completed_rows_count > 0 and completed_rows_count % SAVE_INTERVAL == 0:
-                    print(f"\n--- Saving progress ({len(results_map)} total rows)... ---")
-                    temp_df = pd.DataFrame(list(results_map.values()))
-                    temp_df.to_csv(OUTPUT_CSV_PATH, index=False)
-                    print(f"Successfully saved to {OUTPUT_CSV_PATH}")
-
-    # Final save at the end
-    print("\n--- All parallel tasks complete. Performing final save... ---")
-    final_df = pd.DataFrame(list(results_map.values()))
-    cols_to_drop = [col for col in final_df.columns if col in all_data.columns and col != 'ID']
-    all_data_base = all_data.drop(columns=cols_to_drop, errors='ignore')
-
-    output_df = pd.merge(all_data_base, final_df, on='ID', how='left')
-    output_df.to_csv(OUTPUT_CSV_PATH, index=False)
-    print(f"\n✅ Success! All results saved to:\n{OUTPUT_CSV_PATH}")
+    print("\n\nAll chunks have been processed!")
 
 
 if __name__ == "__main__":
