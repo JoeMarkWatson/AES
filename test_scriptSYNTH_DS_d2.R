@@ -34,7 +34,7 @@ cat_sim = function(fit_obj, data_for_sim) {
   closed_items <- all_items[grepl("^q.*p$", all_items)]
   open_items <- all_items[!all_items %in% c(closed_items, 'ID', 'true_theta')]
   
-  params <- coef(fit_obj, IRTpar=T, simplify=TRUE)
+  params <- coef(fit_obj, IRTpar=TRUE, simplify=TRUE)
   itembank <- params$items
   itembank_closed <- itembank[rownames(itembank) %in% closed_items, ]
   
@@ -63,9 +63,7 @@ cat_sim = function(fit_obj, data_for_sim) {
       bias_vec <- c(bias_vec, fso_F1 - true_theta)
       
       if (sum(is.na(closed_resps)) >= 1) {
-        
         fso_F1_nextItem = ifelse(is.na(fso_F1), 0, fso_F1) # added 08102025
-        
         fso_ni <- nextItem(itemBank = itembank_closed, model = 'GRM', theta = fso_F1_nextItem, out = outvec)
         closed_resps[fso_ni$item] <- data_for_sim[r, fso_ni$name]
         outvec <- c(outvec, fso_ni$item)
@@ -83,7 +81,7 @@ cat_sim2 = function(fit_obj, data_all) {
   closed_items <- all_items[grepl("^q.*p$", all_items)]
   open_items <- all_items[!all_items %in% c(closed_items, 'ID', 'true_theta')]
   
-  params <- coef(fit_obj, IRTpar=T, simplify=TRUE)
+  params <- coef(fit_obj, IRTpar=TRUE, simplify=TRUE)
   itembank_closed <- params$items[rownames(params$items) %in% closed_items, ]
   
   chunks <- list(
@@ -115,9 +113,7 @@ cat_sim2 = function(fit_obj, data_all) {
         } else { fso_F1 <- NA }
         theta_vec <- c(theta_vec, fso_F1)
         if (sum(is.na(closed_resps)) >= 1) {
-          
           fso_F1_nextItem = ifelse(is.na(fso_F1), 0, fso_F1) # added 08102025
-          
           fso_ni <- nextItem(itemBank = itembank_closed, model = 'GRM', theta = fso_F1_nextItem, out=outvec)
           closed_resps[fso_ni$item] <- chunk_data[r, fso_ni$name]
           outvec <- c(outvec, fso_ni$item)
@@ -177,12 +173,27 @@ plot_subplots_whole_sample <- function(obj_list, color_mapping) {
   plot_list <- list()
   df_indices <- 2:5 # Theta, TSE, Accuracy, Bias
   
-  y_axis_labels <- c("Mean θ Estimate", "Mean θ Estimate Standard Error", 
-                     "Mean Absolute Error |θ_est - θ_true|", "Mean Bias (θ_est - θ_true)")
-  metric_titles <- c("A. Theta Estimation", "B. Estimation Precision", "C. Accuracy", "D. Bias",
-                     "E. Total Test Information", "F. Information From LLM Items vs Avg Closed Item")
+  # UPDATED LABELS/TITLES
+  y_axis_labels <- c(
+    "Mean θ Estimate",
+    "Mean θ Estimate Standard Error",
+    "Mean Abs. Error |θ_est - θ_true|",
+    "Mean Bias (θ_est - θ_true)"
+  )
   
-  linetypes <- setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))
+  metric_titles <- c(
+    "A. Theta Estimation",
+    "B. Estimation Precision",
+    "C. Accuracy",
+    "D. Bias",
+    "E. Total Test Information",
+    "F. Information From LLM Items vs. Average Closed Item"
+  )
+  
+  linetypes <- setNames(
+    ifelse(names(color_mapping) == "Baseline", "dashed", "solid"),
+    names(color_mapping)
+  )
   
   for (i in seq_along(df_indices)) {
     plot_data <- bind_rows(lapply(names(obj_list), function(cat_name) {
@@ -203,11 +214,26 @@ plot_subplots_whole_sample <- function(obj_list, color_mapping) {
       scale_color_manual(values = color_mapping) +
       scale_linetype_manual(values = linetypes) +
       theme_minimal() +
-      theme(panel.border = element_rect(color = "black", fill = NA, size = 1),
-            axis.title = element_text(size = 12)) +
-      labs(x = "Closed Items Administered", y = y_axis_labels[i], title = metric_titles[i], color = "Approach", linetype = "Approach")
+      theme(
+        panel.border = element_rect(color = "black", fill = NA, size = 1),
+        axis.title = element_text(size = 12)
+      ) +
+      labs(
+        x = "Closed Items Administered",
+        y = y_axis_labels[i],
+        title = metric_titles[i],
+        color = "Approach",
+        linetype = "Approach"
+      )
     
-    p <- if (i == 2) p + theme(legend.position = c(0.78, 0.73), legend.background = element_rect(color = "black", fill = NA)) else p + theme(legend.position = "none")
+    p <- if (i == 2) {
+      p + theme(
+        legend.position = c(0.78, 0.73),
+        legend.background = element_rect(color = "black", fill = NA)
+      )
+    } else {
+      p + theme(legend.position = "none")
+    }
     plot_list[[i]] <- p
   }
   
@@ -221,7 +247,8 @@ plot_subplots_whole_sample <- function(obj_list, color_mapping) {
   p5 <- ggplot(plot5_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) + theme_minimal() +
     labs(title = metric_titles[5], x = expression(theta), y = "Information") +
-    scale_color_manual(values = color_mapping) + scale_linetype_manual(values = linetypes) +
+    scale_color_manual(values = color_mapping) +
+    scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA), legend.position = "none")
   plot_list[[5]] <- p5
   
@@ -235,7 +262,8 @@ plot_subplots_whole_sample <- function(obj_list, color_mapping) {
   p6 <- ggplot(plot6_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
     geom_line(size = 1) + theme_minimal() +
     labs(title = metric_titles[6], x = expression(theta), y = "Information") +
-    scale_color_manual(values = color_mapping) + scale_linetype_manual(values = linetypes) +
+    scale_color_manual(values = color_mapping) +
+    scale_linetype_manual(values = linetypes) +
     theme(panel.border = element_rect(color = "black", fill = NA), legend.position = "none")
   plot_list[[6]] <- p6
   
@@ -269,8 +297,13 @@ plot_subplots_theta_groups <- function(obj_list, metric = "ttd", color_mapping) 
     
     plot_data$CAT <- factor(plot_data$CAT, levels = names(color_mapping))
     
+    # UPDATED Y LABELS FOR SI PLOTS
     y_lab <- if (i == 1) {
-      if (metric == "ttd") "Mean Absolute Error" else "Mean Bias"
+      if (metric == "ttd") {
+        "Mean Abs. Error |θ_est - θ_true|"
+      } else {
+        "Mean Bias (θ_est - θ_true)"
+      }
     } else { "" }
     
     x_lab <- if (i == 3) "Closed Items Administered" else ""
@@ -278,23 +311,31 @@ plot_subplots_theta_groups <- function(obj_list, metric = "ttd", color_mapping) 
     p <- ggplot(plot_data, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
       geom_point() + geom_line(size = 1) +
       scale_color_manual(values = color_mapping) +
-      scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
+      scale_linetype_manual(values = setNames(
+        ifelse(names(color_mapping) == "Baseline", "dashed", "solid"),
+        names(color_mapping)
+      )) +
       theme_minimal() +
-      theme(panel.border = element_rect(color = "black", fill = NA, size = 1), axis.title = element_text(size=12)) +
+      theme(
+        panel.border = element_rect(color = "black", fill = NA, size = 1),
+        axis.title = element_text(size=12)
+      ) +
       labs(x = x_lab, y = y_lab, title = chunk_titles[i], color = "Approach", linetype = "Approach")
     
-    # NOTE: New conditional logic for legend positioning.
-    # Only subplot B (i=2) gets a legend. Its position depends on the 'metric'.
+    # Legend positioning logic
     if (i == 2) {
       if (metric == "bias") {
-        # For the BIAS plot, move legend to BOTTOM right.
-        p <- p + theme(legend.position = c(0.78, 0.27), legend.background = element_rect(color="black", fill=NA))
+        p <- p + theme(
+          legend.position = c(0.78, 0.27),
+          legend.background = element_rect(color="black", fill=NA)
+        )
       } else {
-        # For the ACCURACY (ttd) plot, keep legend in TOP right.
-        p <- p + theme(legend.position = c(0.78, 0.73), legend.background = element_rect(color="black", fill=NA))
+        p <- p + theme(
+          legend.position = c(0.78, 0.73),
+          legend.background = element_rect(color="black", fill=NA)
+        )
       }
     } else {
-      # All other subplots (A, C, D) have no legend.
       p <- p + theme(legend.position = "none")
     }
     
@@ -303,7 +344,6 @@ plot_subplots_theta_groups <- function(obj_list, metric = "ttd", color_mapping) 
   
   grid.arrange(grobs = plot_list, ncol = 2)
 }
-
 
 # Generates the divergence plot.
 plot_divergence_from_closed <- function(obj_list, color_mapping) {
@@ -323,13 +363,23 @@ plot_divergence_from_closed <- function(obj_list, color_mapping) {
   p <- ggplot(plot_data, aes(y = mean_value, x = item, color = CAT, group = CAT, linetype = CAT)) +
     geom_point() + geom_line(size = 1) +
     scale_color_manual(values = color_mapping) +
-    scale_linetype_manual(values = setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))) +
+    scale_linetype_manual(values = setNames(
+      ifelse(names(color_mapping) == "Baseline", "dashed", "solid"),
+      names(color_mapping)
+    )) +
     theme_minimal() +
-    theme(panel.border = element_rect(color = "black", fill = NA), legend.position = "right",
-          axis.title = element_text(size = 12), plot.title = element_text(hjust = 0.5, face = "bold")) +
-    labs(title = "Divergence from Closed-Only Estimates",
-         y = expression(paste("Mean Absolute Divergence |", hat(theta)[est], " - ", hat(theta)["closed-final"], "|")),
-         x = "Closed Items Administered", color = "Approach", linetype = "Approach")
+    theme(
+      panel.border = element_rect(color = "black", fill = NA),
+      legend.position = "right",
+      axis.title = element_text(size = 12)
+    ) +
+    labs(
+      # No main title for SI divergence plot
+      y = expression(paste("Mean Abs. Divergence |", hat(theta)[est], " - ", hat(theta)["closed-final"], "|")),
+      x = "Closed Items Administered",
+      color = "Approach",
+      linetype = "Approach"
+    )
   
   print(p)
 }
@@ -363,7 +413,7 @@ perform_anova_analysis <- function(obj_list, data_index, dv_name, color_mapping)
   
   cat(paste("\n--- Running Post-Hoc Comparisons for:", dv_name, "---\n"))
   posthoc_results <- emmeans(aov_results, ~ Model, model = "multivariate") %>%
-    pairs(ref = "Closed Only", adjust = "bonferroni")
+    pairs(ref = "Baseline", adjust = "bonferroni")
   
   return(posthoc_results)
 }
@@ -409,15 +459,15 @@ top5_objs_r <- load_n_cat_sim(kept_items_df = items_to_keep_top5, fit_object = f
 
 # --- Prepare Objects for Plotting and Analysis ---
 obj_list <- list(
-  closed = list(data = closed_objs_r, label = "Closed Only"),
-  bciai = list(data = bciai_objs_r, label = "Best All Items"),
-  top5 = list(data = top5_objs_r, label = "Top 5 Items")
+  closed = list(data = closed_objs_r, label = "Baseline"),
+  bciai  = list(data = bciai_objs_r,  label = "All Texts"),
+  top5   = list(data = top5_objs_r,   label = "Top 5 Texts")
 )
 
 color_map <- c(
-  "Best All Items" = "#e7298a", # Pink/Magenta
-  "Top 5 Items" = "#66a61e",    # Green
-  "Closed Only" = "black"
+  "Baseline"    = "black",
+  "All Texts"   = "#e7298a", # Pink/Magenta
+  "Top 5 Texts" = "#66a61e"  # Green
 )
 
 # --- Calculate and Plot Divergence ---
@@ -444,27 +494,27 @@ top5_objs_r2 <- load_n_cat_sim2(kept_items_df = items_to_keep_top5, fit_object =
 
 # --- Plot Sim 2 Results ---
 obj_list2 <- list(
-  closed = list(data = closed_objs_r2, label = "Closed Only"),
-  bciai = list(data = bciai_objs_r2, label = "Best All Items"),
-  top5 = list(data = top5_objs_r2, label = "Top 5 Items")
+  closed = list(data = closed_objs_r2, label = "Baseline"),
+  bciai  = list(data = bciai_objs_r2,  label = "All Texts"),
+  top5   = list(data = top5_objs_r2,   label = "Top 5 Texts")
 )
 print("--- Plotting Theta Subgroup Results (Accuracy) ---")
-plot_subplots_theta_groups(obj_list2, metric = "ttd", color_mapping = color_map)
+plot_subplots_theta_groups(obj_list2, metric = "ttd",  color_mapping = color_map)
 print("--- Plotting Theta Subgroup Results (Bias) ---")
 plot_subplots_theta_groups(obj_list2, metric = "bias", color_mapping = color_map)
 
 # --- Perform ANOVA ---
 print("--- Performing ANOVA and Post-Hoc Tests ---")
-posthoc_results_precision <- perform_anova_analysis(obj_list, 3, "TSE", color_map)
-posthoc_results_accuracy <- perform_anova_analysis(obj_list, 4, "Accuracy", color_map)
+posthoc_results_precision <- perform_anova_analysis(obj_list, 3, "TSE",      color_map)
+posthoc_results_accuracy  <- perform_anova_analysis(obj_list, 4, "Accuracy", color_map)
 
 # --- View and Save ANOVA Results ---
 cat("\n\n--- ANOVA FINAL RESULTS: ESTIMATION PRECISION ---\n")
 print(posthoc_results_precision)
-write.csv(as.data.frame(posthoc_results_precision), "output/synth_posthoc_precision_results.csv", row.names = FALSE)
+#write.csv(as.data.frame(posthoc_results_precision), "output/synth_posthoc_precision_results.csv", row.names = FALSE)
 cat("\n\n--- ANOVA FINAL RESULTS: ACCURACY ---\n")
 print(posthoc_results_accuracy)
-write.csv(as.data.frame(posthoc_results_accuracy), "output/synth_posthoc_accuracy_results.csv", row.names = FALSE)
+#write.csv(as.data.frame(posthoc_results_accuracy), "output/synth_posthoc_accuracy_results.csv", row.names = FALSE)
 
 # --- Calculate Information Equivalence ---
 print("--- Calculating Information Equivalence ---")
@@ -484,7 +534,7 @@ summary_table <- bind_rows(results_list) %>% arrange(desc(AvgEquivalence))
 
 cat("\n--- Information Equivalence Summary Table ---\n")
 print(summary_table)
-write.csv(summary_table, "output/synth_infoEquivSummary.csv", row.names = FALSE)
+#write.csv(summary_table, "output/synth_infoEquivSummary.csv", row.names = FALSE)
 
 best_model <- summary_table[1, ]
 cat("\n--- Top Performing Model ---\n")

@@ -127,13 +127,29 @@ load_n_cat_sim <- function(fit_object, closed_only = FALSE) {
 # Main plotting function
 plot_simulation_results <- function(obj_list, color_mapping) {
   plot_list <- list()
-  metric_titles <- c("A. Theta Estimation", "B. Estimation Precision", 
-                     "C. Divergence from Closed-Only Estimates", "D. Convergent Validity (R²)",
-                     "E. Total Test Information", "F. Information From LLM Items")
-  y_axis_labels <- c("Mean θ Estimate", "Mean θ Estimate SE",
-                     "Mean Abs. Divergence from Closed-Only θ", "Variance Explained in Suicidality (R²)")
   
-  linetypes <- setNames(ifelse(names(color_mapping) == "Closed Only", "dashed", "solid"), names(color_mapping))
+  # UPDATED TITLES
+  metric_titles <- c(
+    "A. Theta Estimation",
+    "B. Estimation Precision", 
+    "C. Divergence from Baseline Estimates",
+    "D. Convergent Validity (R²)",
+    "E. Total Test Information",
+    "F. Information From LLM Items vs. Average Closed Item"
+  )
+  
+  # UPDATED Y-AXIS LABELS (C uses expression)
+  y_axis_labels <- list(
+    "Mean θ Estimate",
+    "Mean θ Estimate SE",
+    expression(paste("Mean Abs. Divergence |", hat(theta)[est], " - ", hat(theta)["baseline-final"], "|")),
+    "Variance Explained in Suicidality (R²)"
+  )
+  
+  linetypes <- setNames(
+    ifelse(names(color_mapping) == "Baseline", "dashed", "solid"),
+    names(color_mapping)
+  )
   
   # Generate Plots A, B, C, D
   for (i in 1:4) {
@@ -163,9 +179,20 @@ plot_simulation_results <- function(obj_list, color_mapping) {
       scale_linetype_manual(values = linetypes) +
       theme_minimal() +
       theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-      labs(x = "Closed Items Administered", y = y_axis_labels[i], title = metric_titles[i], color = "Model", linetype = "Model")
+      labs(
+        x = "Closed Items Administered",
+        y = y_axis_labels[[i]],
+        title = metric_titles[i],
+        color = "Model",
+        linetype = "Model"
+      )
     
-    p <- if (i == 2) p + theme(legend.position = c(0.77, 0.7), legend.background = element_rect(color = "black", fill = NA)) else p + theme(legend.position = "none")
+    p <- if (i == 2) {
+      p + theme(legend.position = c(0.77, 0.7),
+                legend.background = element_rect(color = "black", fill = NA))
+    } else {
+      p + theme(legend.position = "none")
+    }
     plot_list[[i]] <- p
   }
   
@@ -179,9 +206,15 @@ plot_simulation_results <- function(obj_list, color_mapping) {
     
     p_info <- ggplot(plot_info_data, aes(x = theta, y = info, color = CAT, linetype = CAT)) +
       geom_line(size = 1) + theme_minimal() +
-      labs(title = metric_titles[i-1], x = expression(theta), y = "Information") +
-      scale_color_manual(values = color_mapping) + scale_linetype_manual(values = linetypes) +
-      theme(panel.border = element_rect(color = "black", fill = NA), legend.position = "none")
+      labs(
+        title = metric_titles[i-1],
+        x = expression(theta),
+        y = "Information"
+      ) +
+      scale_color_manual(values = color_mapping) +
+      scale_linetype_manual(values = linetypes) +
+      theme(panel.border = element_rect(color = "black", fill = NA),
+            legend.position = "none")
     plot_list[[i-1]] <- p_info
   }
   
@@ -217,7 +250,7 @@ perform_anova_analysis <- function(obj_list, data_index, dv_name, color_mapping)
   
   cat(paste("\n--- Running Post-Hoc Comparisons for:", dv_name, "---\n"))
   posthoc_results <- emmeans(aov_results, ~ Model, model = "multivariate") %>%
-    pairs(ref = "Closed Only", adjust = "bonferroni")
+    pairs(ref = "Baseline", adjust = "bonferroni")
   
   return(posthoc_results)
 }
@@ -251,18 +284,18 @@ top5_objs_r <- load_n_cat_sim(fit_object = fit_top5)
 # # 4. Plot Simulation Output ----
 
 obj_list <- list(
-  closed = list(data = closed_objs_r, label = "Closed Only"),
-  bciai = list(data = bciai_objs_r, label = "Best All Items"),
-  top5 = list(data = top5_objs_r, label = "Top 5 Items")
+  closed = list(data = closed_objs_r, label = "Baseline"),
+  bciai  = list(data = bciai_objs_r, label = "All Texts"),
+  top5   = list(data = top5_objs_r, label = "Top 5 Texts")
 )
+
 color_map <- c(
-  "Best All Items" = "#e7298a",
-  "Top 5 Items" = "#66a61e",
-  "Closed Only" = "black"
+  "All Texts"   = "#e7298a",
+  "Top 5 Texts" = "#66a61e",
+  "Baseline"    = "black"
 )
 
 plot_simulation_results(obj_list, color_mapping = color_map)
-
 
 # # 5. Perform and Save ANOVA Results ----
 print("--- Performing ANOVA and Post-Hoc Tests ---")
@@ -274,7 +307,6 @@ posthoc_results_precision <- perform_anova_analysis(obj_list, 3, "TSE", color_ma
 cat("\n\n--- ANOVA FINAL RESULTS: ESTIMATION PRECISION ---\n")
 print(posthoc_results_precision)
 write.csv(as.data.frame(posthoc_results_precision), "output/real_posthoc_precision_results.csv", row.names = FALSE)
-
 
 # # 6. Calculate Information Equivalence ----
 print("--- Calculating Information Equivalence ---")
