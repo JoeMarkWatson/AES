@@ -1,7 +1,6 @@
 # AES
 
-This repository contains code accompanying a manuscript on augmenting rating-scale assessments with LLM-scored free-text data. A preprint version is available at https://arxiv.org/abs/2510.08663
-. The manuscript is currently under review, and the codebase may evolve to reflect revisions.
+This repository contains code accompanying a manuscript on augmenting rating-scale assessments with LLM-scored free-text data. A preprint version is available at https://arxiv.org/abs/2510.08663. The manuscript is currently under review, and the codebase may evolve to reflect revisions.
 
 ## Overview
 
@@ -22,4 +21,4 @@ In line with ethical and data-protection requirements, no real participant data 
 
 ## Note on code generation
 
-Some portions of the codebase were co-created with large language models (e.g. ChatGPT). All code has been reviewed, edited, and executed by the authors.
+Some portions of the codebase were co-created with LLMs. All code has been reviewed, edited, and executed by the authors.
