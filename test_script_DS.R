@@ -345,3 +345,166 @@ cat(sprintf(
   best_model$Model,
   best_model$AvgEquivalence
 ))
+
+# # 7. Data summary tables ----
+
+dir.create("output", showWarnings = FALSE, recursive = TRUE)
+
+# ---- Utility: return mean by position (k) for a person-by-position matrix/data.frame
+mean_by_pos <- function(mat) {
+  m <- colMeans(mat, na.rm = TRUE)
+  tibble::tibble(k = 0:(length(m)-1), mean = as.numeric(m))
+}
+
+# ---- Build per-position tables for each model: mean SE and mean R2
+build_position_tables <- function(obj_list) {
+  # In your cat_sim return: data[[3]] is tse_df, data[[5]] is cor_vec (R^2 per k)
+  se_tbl <- dplyr::bind_rows(lapply(names(obj_list), function(mn) {
+    label <- obj_list[[mn]]$label
+    tse_df <- obj_list[[mn]]$data[[3]]
+    mean_by_pos(tse_df) |> dplyr::mutate(Model = label)
+  }))
+  
+  r2_tbl <- dplyr::bind_rows(lapply(names(obj_list), function(mn) {
+    label <- obj_list[[mn]]$label
+    r2_vec <- obj_list[[mn]]$data[[5]]
+    tibble::tibble(k = 0:(length(r2_vec)-1), mean = as.numeric(r2_vec), Model = label)
+  }))
+  
+  list(se_tbl = se_tbl, r2_tbl = r2_tbl)
+}
+
+# ---- Compute deltas vs baseline per position:
+#      - SE percent reduction vs baseline
+#      - R2 absolute increase vs baseline
+build_delta_tables_vs_baseline <- function(se_tbl, r2_tbl, baseline_label = "Baseline") {
+  se_w <- tidyr::pivot_wider(se_tbl, names_from = Model, values_from = mean)
+  r2_w <- tidyr::pivot_wider(r2_tbl, names_from = Model, values_from = mean)
+  
+  # SE % reduction columns for each non-baseline model
+  other_models_se <- setdiff(names(se_w), c("k", baseline_label))
+  se_delta <- se_w
+  for (m in other_models_se) {
+    se_delta[[paste0("SE_pct_reduction_vs_baseline__", m)]] <-
+      100 * (se_w[[baseline_label]] - se_w[[m]]) / se_w[[baseline_label]]
+  }
+  
+  # R2 absolute delta columns for each non-baseline model
+  other_models_r2 <- setdiff(names(r2_w), c("k", baseline_label))
+  r2_delta <- r2_w
+  for (m in other_models_r2) {
+    r2_delta[[paste0("dR2_vs_baseline__", m)]] <- r2_w[[m]] - r2_w[[baseline_label]]
+  }
+  
+  list(se_delta = se_delta, r2_delta = r2_delta)
+}
+
+# ---- Headline summaries from per-position deltas
+headline_summaries <- function(se_delta, r2_delta,
+                               early_ks = 1:5,
+                               all_ks = 1:19) {
+  
+  mean_over_k <- function(df, ks, cols) {
+    df2 <- df[df$k %in% ks, , drop = FALSE]
+    sapply(cols, function(cn) mean(df2[[cn]], na.rm = TRUE))
+  }
+  
+  se_pct_cols <- grep("^SE_pct_reduction_vs_baseline__", names(se_delta), value = TRUE)
+  r2_d_cols   <- grep("^dR2_vs_baseline__", names(r2_delta), value = TRUE)
+  
+  se_all   <- mean_over_k(se_delta, all_ks, se_pct_cols)
+  se_early <- mean_over_k(se_delta, early_ks, se_pct_cols)
+  
+  r2_all   <- mean_over_k(r2_delta, all_ks, r2_d_cols)
+  r2_early <- mean_over_k(r2_delta, early_ks, r2_d_cols)
+  
+  dplyr::bind_rows(
+    tibble::tibble(Metric = names(se_all),   Window = "All positions (k=1..19)", Value = as.numeric(se_all)),
+    tibble::tibble(Metric = names(se_early), Window = "Early positions (k=1..5)",  Value = as.numeric(se_early)),
+    tibble::tibble(Metric = names(r2_all),   Window = "All positions (k=1..19)", Value = as.numeric(r2_all)),
+    tibble::tibble(Metric = names(r2_early), Window = "Early positions (k=1..5)",  Value = as.numeric(r2_early))
+  )
+}
+
+# ---- NEW: Proportion reaching SE threshold by position k (0..19)
+# For each model, each threshold T, and each k:
+#   Prop_reaching(T,k) = proportion of people with SE(i,k) <= T
+threshold_prop_by_position <- function(obj_list,
+                                       thresholds = c(0.40, 0.35, 0.30)) {
+  
+  out <- list()
+  
+  for (mn in names(obj_list)) {
+    label <- obj_list[[mn]]$label
+    tse_df <- obj_list[[mn]]$data[[3]]  # rows=people, cols=k=0..19
+    
+    # Compute prop at each k for each threshold
+    for (T in thresholds) {
+      # apply over columns: proportion <= T (ignoring NAs)
+      props <- apply(tse_df, 2, function(colv) mean(colv <= T, na.rm = TRUE))
+      
+      out[[length(out) + 1]] <- tibble::tibble(
+        Model = label,
+        Threshold = T,
+        k = 0:(length(props)-1),
+        Prop_reaching = as.numeric(props)
+      )
+    }
+  }
+  
+  dplyr::bind_rows(out) |>
+    dplyr::arrange(Threshold, Model, k)
+}
+
+# =========================
+# RUN THE SUMMARIES (REAL) + 2DP EXPORTS
+# =========================
+
+# Helper: round all numeric columns except specified keys
+round_numeric_cols <- function(df, digits = 2, exclude = c("k", "Threshold")) {
+  num_cols <- names(df)[sapply(df, is.numeric)]
+  num_cols <- setdiff(num_cols, exclude)
+  df[num_cols] <- lapply(df[num_cols], function(x) round(x, digits))
+  df
+}
+
+pos_tabs <- build_position_tables(obj_list)
+se_tbl <- pos_tabs$se_tbl
+r2_tbl <- pos_tabs$r2_tbl
+
+# Delta tables vs Baseline
+deltas <- build_delta_tables_vs_baseline(se_tbl, r2_tbl, baseline_label = "Baseline")
+se_delta <- deltas$se_delta
+r2_delta <- deltas$r2_delta
+
+# -----------------------------
+# Round to 2DP
+# -----------------------------
+se_delta_2dp <- round_numeric_cols(se_delta, digits = 2, exclude = c("k"))
+r2_delta_2dp <- round_numeric_cols(r2_delta, digits = 2, exclude = c("k"))
+
+# Save deltas by position (2DP)
+readr::write_csv(se_delta_2dp, "output/real_SE_pctReduction_vsBaseline_by_position_2dp.csv")
+readr::write_csv(r2_delta_2dp, "output/real_dR2_vsBaseline_by_position_2dp.csv")
+
+# Headline summaries: all positions and early positions (2DP)
+headline <- headline_summaries(se_delta, r2_delta, early_ks = 1:5, all_ks = 1:19) %>%
+  dplyr::mutate(Value = round(Value, 2))
+
+readr::write_csv(headline, "output/real_headline_SEpct_and_dR2_2dp.csv")
+
+# Threshold attainment as PROPORTION by position + wide table (2DP)
+thresh_prop_tbl <- threshold_prop_by_position(obj_list, thresholds = c(0.40, 0.35, 0.30))
+
+thresh_prop_wide <- thresh_prop_tbl %>%
+  tidyr::pivot_wider(
+    id_cols     = c(Threshold, k),
+    names_from  = Model,
+    values_from = Prop_reaching
+  ) %>%
+  dplyr::arrange(Threshold, k) %>%
+  # force column order (Baseline first, then Top 5, then All)
+  dplyr::relocate(dplyr::any_of(c("Baseline", "Top 5 Texts", "All Texts")), .after = k) %>%
+  round_numeric_cols(digits = 2, exclude = c("k", "Threshold"))
+
+readr::write_csv(thresh_prop_wide, "output/real_threshold_prop_by_position_WIDE_2dp.csv")
