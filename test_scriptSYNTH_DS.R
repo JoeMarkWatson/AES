@@ -21,8 +21,8 @@ load_kept_GPT_items = function(kept_items_df, full_df, closed_item_names) {
 }
 
 # Creates an empty dataframe to store simulation results.
-create_obj = function(ur_df, closed_item_names) { 
-  ncols = length(closed_item_names) + 1 
+create_obj = function(ur_df, closed_item_names) {
+  ncols = length(closed_item_names) + 1
   nrows = nrow(ur_df)
   df = data.frame(matrix(nrow=nrows, ncol=ncols))
   return(df)
@@ -131,7 +131,7 @@ cat_sim2 = function(fit_obj, data_all) {
 # Wrapper for sim 1.
 load_n_cat_sim = function(closed_only=FALSE, kept_items_df, fit_object, full_df, closed_item_names) {
   theta_range <- seq(-4, 4, 0.1)
-  model_test_info <- testinfo(x=fit_object, Theta=theta_range)  
+  model_test_info <- testinfo(x=fit_object, Theta=theta_range)
   
   if (closed_only) {
     itk_df <- full_df[c("ID", "true_theta", closed_item_names)]
@@ -349,7 +349,7 @@ plot_subplots_theta_groups <- function(obj_list, metric = "ttd", color_mapping) 
 plot_divergence_from_closed <- function(obj_list, color_mapping) {
   plot_data <- bind_rows(lapply(names(obj_list), function(cat_name) {
     obj <- obj_list[[cat_name]]
-    df <- obj$data[[8]] # The divergence_df is the 8th element 
+    df <- obj$data[[8]] # The divergence_df is the 8th element
     if (!is.null(df)) {
       df_means <- get_mean_values(df)
       df_means$CAT <- obj$label
@@ -417,7 +417,6 @@ perform_anova_analysis <- function(obj_list, data_index, dv_name, color_mapping)
   
   return(posthoc_results)
 }
-
 
 # # 2. Main Execution Block ----
 
@@ -534,7 +533,14 @@ summary_table <- bind_rows(results_list) %>% arrange(desc(AvgEquivalence))
 
 cat("\n--- Information Equivalence Summary Table ---\n")
 print(summary_table)
-#write.csv(summary_table, "output/synth_infoEquivSummary.csv", row.names = FALSE)
+write.csv(summary_table, "output/synth_infoEquivSummary.csv", row.names = FALSE)
+
+# NEW: explicitly print BOTH model values for manuscript copy/paste
+equiv_all_texts  <- summary_table$AvgEquivalence[summary_table$Model == "All Texts"]
+equiv_top5_texts <- summary_table$AvgEquivalence[summary_table$Model == "Top 5 Texts"]
+cat("\n--- Manuscript numbers: Information equivalence (theta -2 to 2) ---\n")
+cat(sprintf("All Texts: %.1f average rating-scale items\n", equiv_all_texts))
+cat(sprintf("Top 5 Texts: %.1f average rating-scale items\n", equiv_top5_texts))
 
 best_model <- summary_table[1, ]
 cat("\n--- Top Performing Model ---\n")
@@ -603,7 +609,7 @@ build_delta_tables_vs_baseline <- function(se_tbl, mae_tbl, baseline_label = "Ba
 
 # ---- Headline summaries from per-position deltas
 headline_summaries <- function(se_delta, mae_delta,
-                               early_ks = 1:5,
+                               early_ks = 1:10,   # <-- CHANGED: early window is now k=1..10
                                all_ks = 1:19) {
   
   mean_over_k <- function(df, ks, cols) {
@@ -621,10 +627,10 @@ headline_summaries <- function(se_delta, mae_delta,
   mae_early <- mean_over_k(mae_delta, early_ks, mae_pct_cols)
   
   dplyr::bind_rows(
-    tibble::tibble(Metric = names(se_all),    Window = "All positions (k=1..19)", Value = as.numeric(se_all)),
-    tibble::tibble(Metric = names(se_early),  Window = "Early positions (k=1..5)",  Value = as.numeric(se_early)),
-    tibble::tibble(Metric = names(mae_all),   Window = "All positions (k=1..19)", Value = as.numeric(mae_all)),
-    tibble::tibble(Metric = names(mae_early), Window = "Early positions (k=1..5)",  Value = as.numeric(mae_early))
+    tibble::tibble(Metric = names(se_all),    Window = "All positions (k=1..19)",  Value = as.numeric(se_all)),
+    tibble::tibble(Metric = names(se_early),  Window = "Early positions (k=1..10)", Value = as.numeric(se_early)),  # <-- CHANGED label
+    tibble::tibble(Metric = names(mae_all),   Window = "All positions (k=1..19)",  Value = as.numeric(mae_all)),
+    tibble::tibble(Metric = names(mae_early), Window = "Early positions (k=1..10)", Value = as.numeric(mae_early))  # <-- CHANGED label
   )
 }
 
@@ -666,8 +672,6 @@ deltas <- build_delta_tables_vs_baseline(se_tbl, mae_tbl, baseline_label = "Base
 se_delta  <- deltas$se_delta
 mae_delta <- deltas$mae_delta
 
-# Round to 2DP for appendix use
-
 # Helper: round all numeric columns except k (and optionally Threshold)
 round_numeric_cols <- function(df, digits = 2, exclude = c("k", "Threshold")) {
   num_cols <- names(df)[sapply(df, is.numeric)]
@@ -684,7 +688,7 @@ readr::write_csv(se_delta_2dp,  "output/synth_SE_pctReduction_vsBaseline_by_posi
 readr::write_csv(mae_delta_2dp, "output/synth_MAE_pctReduction_vsBaseline_by_position_2dp.csv")
 
 # Headline summaries: all positions and early positions (2DP)
-headline <- headline_summaries(se_delta, mae_delta, early_ks = 1:5, all_ks = 1:19) %>%
+headline <- headline_summaries(se_delta, mae_delta, early_ks = 1:10, all_ks = 1:19) %>%  # <-- CHANGED: 1:10
   dplyr::mutate(Value = round(Value, 2))
 
 readr::write_csv(headline, "output/synth_headline_SEpct_and_MAEpct_2dp.csv")
@@ -703,4 +707,3 @@ thresh_prop_wide <- thresh_prop_tbl %>%
   round_numeric_cols(digits = 2, exclude = c("k", "Threshold"))
 
 readr::write_csv(thresh_prop_wide, "output/synth_threshold_prop_by_position_WIDE_2dp.csv")
-

@@ -1,8 +1,7 @@
 # # # Model Comparison Script # # #
-
 # Script compares the performance of the baseline, bciai, and top5 models through a CAT simulation
 
-current_path = rstudioapi::getActiveDocumentContext()$path 
+current_path = rstudioapi::getActiveDocumentContext()$path
 setwd(dirname(current_path))
 
 # # 1. Load Packages ----
@@ -131,7 +130,7 @@ plot_simulation_results <- function(obj_list, color_mapping) {
   # UPDATED TITLES
   metric_titles <- c(
     "A. Theta Estimation",
-    "B. Estimation Precision", 
+    "B. Estimation Precision",
     "C. Divergence from Baseline Estimates",
     "D. Convergent Validity (R²)",
     "E. Total Test Information",
@@ -255,7 +254,6 @@ perform_anova_analysis <- function(obj_list, data_index, dv_name, color_mapping)
   return(posthoc_results)
 }
 
-
 # # 3. Execute Analysis ----
 
 root <- '/Users/jw/Desktop/dt/jbs_work/Psychometrician_position/ivan proj/'
@@ -337,14 +335,13 @@ cat("\n--- Information Equivalence Summary Table ---\n")
 print(summary_table)
 write.csv(summary_table, "output/real_infoEquivSummary.csv", row.names = FALSE)
 
-# Print summary sentence for the best model
-best_model <- summary_table[1, ]
-cat("\n--- Top Performing Model ---\n")
-cat(sprintf(
-  "Across the theta range of [-2, 2], the top-performing '%s' item set provides information equivalent to approximately %.1f average closed items.\n",
-  best_model$Model,
-  best_model$AvgEquivalence
-))
+# NEW: print BOTH model values explicitly (All Texts and Top 5 Texts) for manuscript copy/paste
+equiv_all_texts <- summary_table$AvgEquivalence[summary_table$Model == "All Texts"]
+equiv_top5_texts <- summary_table$AvgEquivalence[summary_table$Model == "Top 5 Texts"]
+cat("\n--- Manuscript numbers: Information equivalence (theta -2 to 2) ---\n")
+cat(sprintf("All Texts: %.1f average closed items\n", equiv_all_texts))
+cat(sprintf("Top 5 Texts: %.1f average closed items\n", equiv_top5_texts))
+
 
 # # 7. Data summary tables ----
 
@@ -401,7 +398,7 @@ build_delta_tables_vs_baseline <- function(se_tbl, r2_tbl, baseline_label = "Bas
 
 # ---- Headline summaries from per-position deltas
 headline_summaries <- function(se_delta, r2_delta,
-                               early_ks = 1:5,
+                               early_ks = 1:10,   # <-- CHANGED: early window is now k=1..10
                                all_ks = 1:19) {
   
   mean_over_k <- function(df, ks, cols) {
@@ -420,9 +417,9 @@ headline_summaries <- function(se_delta, r2_delta,
   
   dplyr::bind_rows(
     tibble::tibble(Metric = names(se_all),   Window = "All positions (k=1..19)", Value = as.numeric(se_all)),
-    tibble::tibble(Metric = names(se_early), Window = "Early positions (k=1..5)",  Value = as.numeric(se_early)),
+    tibble::tibble(Metric = names(se_early), Window = "Early positions (k=1..10)", Value = as.numeric(se_early)), # <-- CHANGED label
     tibble::tibble(Metric = names(r2_all),   Window = "All positions (k=1..19)", Value = as.numeric(r2_all)),
-    tibble::tibble(Metric = names(r2_early), Window = "Early positions (k=1..5)",  Value = as.numeric(r2_early))
+    tibble::tibble(Metric = names(r2_early), Window = "Early positions (k=1..10)", Value = as.numeric(r2_early))  # <-- CHANGED label
   )
 }
 
@@ -488,7 +485,7 @@ readr::write_csv(se_delta_2dp, "output/real_SE_pctReduction_vsBaseline_by_positi
 readr::write_csv(r2_delta_2dp, "output/real_dR2_vsBaseline_by_position_2dp.csv")
 
 # Headline summaries: all positions and early positions (2DP)
-headline <- headline_summaries(se_delta, r2_delta, early_ks = 1:5, all_ks = 1:19) %>%
+headline <- headline_summaries(se_delta, r2_delta, early_ks = 1:10, all_ks = 1:19) %>%  # <-- CHANGED: 1:10
   dplyr::mutate(Value = round(Value, 2))
 
 readr::write_csv(headline, "output/real_headline_SEpct_and_dR2_2dp.csv")

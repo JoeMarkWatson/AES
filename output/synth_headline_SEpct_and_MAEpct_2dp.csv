@@ -1,9 +1,9 @@
 Metric,Window,Value
 SE_pct_reduction_vs_baseline__All Texts,All positions (k=1..19),25.2
 SE_pct_reduction_vs_baseline__Top 5 Texts,All positions (k=1..19),20.08
-SE_pct_reduction_vs_baseline__All Texts,Early positions (k=1..5),34.55
-SE_pct_reduction_vs_baseline__Top 5 Texts,Early positions (k=1..5),28.86
+SE_pct_reduction_vs_baseline__All Texts,Early positions (k=1..10),29.63
+SE_pct_reduction_vs_baseline__Top 5 Texts,Early positions (k=1..10),24.18
 MAE_pct_reduction_vs_baseline__All Texts,All positions (k=1..19),9.71
 MAE_pct_reduction_vs_baseline__Top 5 Texts,All positions (k=1..19),9.98
-MAE_pct_reduction_vs_baseline__All Texts,Early positions (k=1..5),19.34
-MAE_pct_reduction_vs_baseline__Top 5 Texts,Early positions (k=1..5),18.85
+MAE_pct_reduction_vs_baseline__All Texts,Early positions (k=1..10),14.12
+MAE_pct_reduction_vs_baseline__Top 5 Texts,Early positions (k=1..10),13.92
